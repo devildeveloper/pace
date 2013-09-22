@@ -658,19 +658,19 @@ cancelAnimation = <span class="literal">null</span>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre><span class="keyword">if</span> window.pushState?
-  _pushState = window.pushState
-  window.<span class="function"><span class="title">pushState</span></span> = -&gt;
+            <div class="content"><div class='highlight'><pre><span class="keyword">if</span> window.history.pushState?
+  _pushState = window.history.pushState
+  window.history.<span class="function"><span class="title">pushState</span></span> = -&gt;
     handlePushState()
 
-    _pushState arguments...
+    _pushState.apply window.history, arguments
 
-<span class="keyword">if</span> window.replaceState?
-  _replaceState = window.replaceState
-  window.<span class="function"><span class="title">replaceState</span></span> = -&gt;
+<span class="keyword">if</span> window.history.replaceState?
+  _replaceState = window.history.replaceState
+  window.history.<span class="function"><span class="title">replaceState</span></span> = -&gt;
     handlePushState()
 
-    _replaceState arguments...
+    _replaceState.apply window.history, arguments
 
 SOURCE_KEYS =
   ajax: AjaxMonitor
