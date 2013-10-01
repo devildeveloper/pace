@@ -1,0 +1,3163 @@
+<h1>sigmund</h1>
+<p>Quick and dirty signatures for Objects.</p>
+<p>This is like a much faster <code>deepEquals</code> comparison, which returns a
+string key suitable for caches and the like.</p>
+<h2>Usage</h2>
+<pre><code class="lang-javascript">function doSomething (someObj) {
+  var key = sigmund(someObj, maxDepth) // max depth defaults to 10
+  var cached = cache.get(key)
+  if (cached) return cached)
+
+  var result = expensiveCalculation(someObj)
+  cache.set(key, result)
+  return result
+}</code></pre>
+<p>The resulting key will be as unique and reproducible as calling
+<code>JSON.stringify</code> or <code>util.inspect</code> on the object, but is much faster.
+In order to achieve this speed, some differences are glossed over.
+For example, the object <code>{0:&#39;foo&#39;}</code> will be treated identically to the
+array <code>[&#39;foo&#39;]</code>.</p>
+<p>Also, just as there is no way to summon the soul from the scribblings
+of a cocain-addled psychoanalyst, there is no way to revive the object
+from the signature string that sigmund gives you.  In fact, it&#39;s
+barely even readable.</p>
+<p>As with <code>sys.inspect</code> and <code>JSON.stringify</code>, larger objects will
+produce larger signature strings.</p>
+<p>Because sigmund is a bit less strict than the more thorough
+alternatives, the strings will be shorter, and also there is a
+slightly higher chance for collisions.  For example, these objects
+have the same signature:</p>
+<pre><code>var obj1 = {a:&#39;b&#39;,c:/def/,g:[&#39;h&#39;,&#39;i&#39;,{j:&#39;&#39;,k:&#39;l&#39;}]}
+var obj2 = {a:&#39;b&#39;,c:&#39;/def/&#39;,g:[&#39;h&#39;,&#39;i&#39;,&#39;{jkl&#39;]}</code></pre>
+<p>Like a good Freudian, sigmund is most effective when you already have
+some understanding of what you&#39;re looking for.  It can help you help
+yourself, but you must be willing to do some work as well.</p>
+<p>Cycles are handled, and cyclical objects are silently omitted (though
+the key is included in the signature output.)</p>
+<p>The second argument is the maximum depth, which defaults to 10,
+because that is the maximum object traversal depth covered by most
+insurance carriers.</p>
+nly actually pull
+stale items out of the cache when you <code>get(key)</code>.  (That is, it&#39;s
+not pre-emptively doing a <code>setTimeout</code> or anything.)  If you set
+<code>stale:true</code>, it&#39;ll return the stale value before deleting it.  If
+you don&#39;t set this, then it&#39;ll return <code>undefined</code> when you try to
+get a stale entry, as if it had already been deleted.</li>
+</ul>
+<h2>API</h2>
+<ul>
+<li><code>set(key, value)</code></li>
+<li><p><code>get(key) =&gt; value</code></p>
+<p>  Both of these will update the &quot;recently used&quot;-ness of the key.
+  They do what you think.</p>
+</li>
+<li><p><code>peek(key)</code></p>
+<p>  Returns the key value (or <code>undefined</code> if not found) without
+  updating the &quot;recently used&quot;-ness of the key.</p>
+<p>  (If you find yourself using this a lot, you <em>might</em> be using the
+  wrong sort of data structure, but there are some use cases where
+  it&#39;s handy.)</p>
+</li>
+<li><p><code>del(key)</code></p>
+<p>  Deletes a key out of the cache.</p>
+</li>
+<li><p><code>reset()</code></p>
+<p>  Clear the cache entirely, throwing away all values.</p>
+</li>
+<li><p><code>has(key)</code></p>
+<p>  Check if a key is in the cache, without updating the recent-ness
+  or deleting it for being stale.</p>
+</li>
+<li><p><code>forEach(function(value,key,cache), [thisp])</code></p>
+<p>  Just like <code>Array.prototype.forEach</code>.  Iterates over all the keys
+  in the cache, in order of recent-ness.  (Ie, more recently used
+  items are iterated over first.)</p>
+</li>
+<li><p><code>keys()</code></p>
+<p>  Return an array of the keys in the cache.</p>
+</li>
+<li><p><code>values()</code></p>
+<p>  Return an array of the values in the cache.</p>
+</li>
+</ul>
+he pattern
+<code>{a,b/c}/d</code> would expand to a set of patterns like:</p>
+<pre><code>  [ [ a, d ]
+  , [ b, c, d ] ]</code></pre>
+<p>  If a portion of the pattern doesn&#39;t have any &quot;magic&quot; in it
+  (that is, it&#39;s something like <code>&quot;foo&quot;</code> rather than <code>fo*o?</code>), then it
+  will be left as a string rather than converted to a regular
+  expression.</p>
+</li>
+<li><p><code>regexp</code> Created by the <code>makeRe</code> method.  A single regular expression
+expressing the entire pattern.  This is useful in cases where you wish
+to use the pattern somewhat like <code>fnmatch(3)</code> with <code>FNM_PATH</code> enabled.</p>
+</li>
+<li><code>negate</code> True if the pattern is negated.</li>
+<li><code>comment</code> True if the pattern is a comment.</li>
+<li><code>empty</code> True if the pattern is <code>&quot;&quot;</code>.</li>
+</ul>
+<h3>Methods</h3>
+<ul>
+<li><code>makeRe</code> Generate the <code>regexp</code> member if necessary, and return it.
+Will return <code>false</code> if the pattern is invalid.</li>
+<li><code>match(fname)</code> Return true if the filename matches the pattern, or
+false otherwise.</li>
+<li><code>matchOne(fileArray, patternArray, partial)</code> Take a <code>/</code>-split
+filename, and match it against a single row in the <code>regExpSet</code>.  This
+method is mainly for internal use, but is exposed so that it can be
+used by a glob-walker that needs to avoid excessive filesystem calls.</li>
+</ul>
+<p>All other methods are internal, and will be called as necessary.</p>
+<h2>Functions</h2>
+<p>The top-level exported function has a <code>cache</code> property, which is an LRU
+cache set to store 100 items.  So, calling these methods repeatedly
+with the same pattern and options will use the same Minimatch object,
+saving the cost of parsing it multiple times.</p>
+<h3>minimatch(path, pattern, options)</h3>
+<p>Main export.  Tests a path against the pattern using the options.</p>
+<pre><code class="lang-javascript">var isJS = minimatch(file, &quot;*.js&quot;, { matchBase: true })</code></pre>
+<h3>minimatch.filter(pattern, options)</h3>
+<p>Returns a function that tests its
+supplied argument, suitable for use with <code>Array.filter</code>.  Example:</p>
+<pre><code class="lang-javascript">var javascripts = fileList.filter(minimatch.filter(&quot;*.js&quot;, {matchBase: true}))</code></pre>
+<h3>minimatch.match(list, pattern, options)</h3>
+<p>Match against the list of
+files, in the style of fnmatch or glob.  If nothing is matched, and
+options.nonull is set, then return a list containing the pattern itself.</p>
+<pre><code class="lang-javascript">var javascripts = minimatch.match(fileList, &quot;*.js&quot;, {matchBase: true}))</code></pre>
+<h3>minimatch.makeRe(pattern, options)</h3>
+<p>Make a regular expression object from the pattern.</p>
+<h2>Options</h2>
+<p>All options are <code>false</code> by default.</p>
+<h3>debug</h3>
+<p>Dump a ton of stuff to stderr.</p>
+<h3>nobrace</h3>
+<p>Do not expand <code>{a,b}</code> and <code>{1..3}</code> brace sets.</p>
+<h3>noglobstar</h3>
+<p>Disable <code>**</code> matching against multiple folder names.</p>
+<h3>dot</h3>
+<p>Allow patterns to match filenames starting with a period, even if
+the pattern does not explicitly have a period in that spot.</p>
+<p>Note that by default, <code>a/**/b</code> will <strong>not</strong> match <code>a/.d/b</code>, unless <code>dot</code>
+is set.</p>
+<h3>noext</h3>
+<p>Disable &quot;extglob&quot; style patterns like <code>+(a|b)</code>.</p>
+<h3>nocase</h3>
+<p>Perform a case-insensitive match.</p>
+<h3>nonull</h3>
+<p>When a match is not found by <code>minimatch.match</code>, return a list containing
+the pattern itself.  When set, an empty list is returned if there are
+no matches.</p>
+<h3>matchBase</h3>
+<p>If set, then patterns without slashes will be matched
+against the basename of the path if it contains slashes.  For example,
+<code>a?b</code> would match the path <code>/xyz/123/acb</code>, but not <code>/xyz/acb/123</code>.</p>
+<h3>nocomment</h3>
+<p>Suppress the behavior of treating <code>#</code> at the start of a pattern as a
+comment.</p>
+<h3>nonegate</h3>
+<p>Suppress the behavior of treating a leading <code>!</code> character as negation.</p>
+<h3>flipNegate</h3>
+<p>Returns from negate expressions the same as if they were not negated.
+(Ie, true on a hit, false on a miss.)</p>
+args as they originally appeared.</li>
+<li><code>cooked</code>: The args after flags and shorthands are expanded.</li>
+</ul>
+<h2>Slicing</h2>
+<p>Node programs are called with more or less the exact argv as it appears
+in C land, after the v8 and node-specific options have been plucked off.
+As such, <code>argv[0]</code> is always <code>node</code> and <code>argv[1]</code> is always the
+JavaScript program being run.</p>
+<p>That&#39;s usually not very useful to you.  So they&#39;re sliced off by
+default.  If you want them, then you can pass in <code>0</code> as the last
+argument, or any other number that you&#39;d like to slice off the start of
+the list.</p>
+#_templatesettingsescape"><code>_.templateSettings.escape</code></a></li>
+<li><a href="#_templatesettingsevaluate"><code>_.templateSettings.evaluate</code></a></li>
+<li><a href="#_templatesettingsinterpolate"><code>_.templateSettings.interpolate</code></a></li>
+<li><a href="#_templatesettingsvariable"><code>_.templateSettings.variable</code></a></li>
+</ul>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+
+<!-- div -->
+
+<h2><code>“Arrays” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_compactarray"></a><code>_.compact(array)</code></h3>
+<p><a href="#_compactarray">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2554" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array with all falsey values of <code>array</code> removed. The values <code>false</code>, <code>null</code>, <code>0</code>, <code>&quot;&quot;</code>, <code>undefined</code> and <code>NaN</code> are all falsey.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to compact.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new filtered array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.compact([0, 1, false, 2, &#39;&#39;, 3]);
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_differencearray--array1-array2-"></a><code>_.difference(array [, array1, array2, ...])</code></h3>
+<p><a href="#_differencearray--array1-array2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2584" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array of <code>array</code> elements not present in the other arrays using strict equality for comparisons, i.e. <code>===</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to process.</li>
+<li><code>[array1, array2, ...]</code> <em>(Array)</em>: Arrays to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of <code>array</code> elements not present in the  other arrays.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.difference([1, 2, 3, 4, 5], [5, 2, 10]);
+// =&gt; [1, 3, 4]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_firstarray--n"></a><code>_.first(array [, n])</code></h3>
+<p><a href="#_firstarray--n">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2619" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets the first element of the <code>array</code>. Pass <code>n</code> to return the first <code>n</code> elements of the <code>array</code>.</p>
+<h4>Aliases</h4>
+<p><em>head, take</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to query.</li>
+<li><code>[n]</code> <em>(Number)</em>: The number of elements to return.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the first element or an array of the first <code>n</code>  elements of <code>array</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.first([5, 4, 3, 2, 1]);
+// =&gt; 5</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_flattenarray-shallow"></a><code>_.flatten(array, shallow)</code></h3>
+<p><a href="#_flattenarray-shallow">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2643" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Flattens a nested array <em>(the nesting can be to any depth)</em>. If <code>shallow</code> is truthy, <code>array</code> will only be flattened a single level.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to compact.</li>
+<li><code>shallow</code> <em>(Boolean)</em>: A flag to indicate only flattening a single level.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new flattened array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.flatten([1, [2], [3, [[4]]]]);
+// =&gt; [1, 2, 3, 4];
+
+_.flatten([1, [2], [3, [[4]]]], true);
+// =&gt; [1, 2, 3, [[4]]];</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_indexofarray-value--fromindex0"></a><code>_.indexOf(array, value [, fromIndex=0])</code></h3>
+<p><a href="#_indexofarray-value--fromindex0">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2685" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets the index at which the first occurrence of <code>value</code> is found using strict equality for comparisons, i.e. <code>===</code>. If the <code>array</code> is already sorted, passing <code>true</code> for <code>fromIndex</code> will run a faster binary search.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to search.</li>
+<li><code>value</code> <em>(Mixed)</em>: The value to search for.</li>
+<li><code>[fromIndex=0]</code> <em>(Boolean|Number)</em>: The index to search from or <code>true</code> to perform a binary search on a sorted <code>array</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns the index of the matched value or <code>-1</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.indexOf([1, 2, 3, 1, 2, 3], 2);
+// =&gt; 1
+
+_.indexOf([1, 2, 3, 1, 2, 3], 2, 3);
+// =&gt; 4
+
+_.indexOf([1, 1, 2, 2, 3, 3], 2, true);
+// =&gt; 2</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_initialarray--n1"></a><code>_.initial(array [, n=1])</code></h3>
+<p><a href="#_initialarray--n1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2720" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets all but the last element of <code>array</code>. Pass <code>n</code> to exclude the last <code>n</code> elements from the result.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to query.</li>
+<li><code>[n=1]</code> <em>(Number)</em>: The number of elements to exclude.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns all but the last element or <code>n</code> elements of <code>array</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.initial([3, 2, 1]);
+// =&gt; [3, 2]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_intersectionarray1-array2-"></a><code>_.intersection([array1, array2, ...])</code></h3>
+<p><a href="#_intersectionarray1-array2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2741" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Computes the intersection of all the passed-in arrays using strict equality for comparisons, i.e. <code>===</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[array1, array2, ...]</code> <em>(Array)</em>: Arrays to process.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of unique elements, in order, that are  present in <strong>all</strong> of the arrays.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.intersection([1, 2, 3], [101, 2, 1, 10], [2, 1]);
+// =&gt; [1, 2]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_lastarray--n"></a><code>_.last(array [, n])</code></h3>
+<p><a href="#_lastarray--n">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2779" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets the last element of the <code>array</code>. Pass <code>n</code> to return the last <code>n</code> elements of the <code>array</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to query.</li>
+<li><code>[n]</code> <em>(Number)</em>: The number of elements to return.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the last element or an array of the last <code>n</code>  elements of <code>array</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.last([3, 2, 1]);
+// =&gt; 1</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_lastindexofarray-value--fromindexarraylength-1"></a><code>_.lastIndexOf(array, value [, fromIndex=array.length-1])</code></h3>
+<p><a href="#_lastindexofarray-value--fromindexarraylength-1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2806" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets the index at which the last occurrence of <code>value</code> is found using strict equality for comparisons, i.e. <code>===</code>. If <code>fromIndex</code> is negative, it is used as the offset from the end of the collection.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to search.</li>
+<li><code>value</code> <em>(Mixed)</em>: The value to search for.</li>
+<li><code>[fromIndex=array.length-1]</code> <em>(Number)</em>: The index to search from.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns the index of the matched value or <code>-1</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.lastIndexOf([1, 2, 3, 1, 2, 3], 2);
+// =&gt; 4
+
+_.lastIndexOf([1, 2, 3, 1, 2, 3], 2, 3);
+// =&gt; 1</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_objectkeys--values"></a><code>_.object(keys [, values=[]])</code></h3>
+<p><a href="#_objectkeys--values">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2836" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an object composed from arrays of <code>keys</code> and <code>values</code>. Pass either a single two dimensional array, i.e. <code>[[key1, value1], [key2, value2]]</code>, or two arrays, one of <code>keys</code> and one of corresponding <code>values</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>keys</code> <em>(Array)</em>: The array of keys.</li>
+<li><code>[values=[]]</code> <em>(Array)</em>: The array of values.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns an object composed of the given keys and  corresponding values.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.object([&#39;moe&#39;, &#39;larry&#39;, &#39;curly&#39;], [30, 40, 50]);
+// =&gt; { &#39;moe&#39;: 30, &#39;larry&#39;: 40, &#39;curly&#39;: 50 }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_rangestart0-end--step1"></a><code>_.range([start=0], end [, step=1])</code></h3>
+<p><a href="#_rangestart0-end--step1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2881" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array of numbers <em>(positive and/or negative)</em> progressing from <code>start</code> up to but not including <code>stop</code>. This method is a port of Python&#39;s <code>range()</code> function. See <a href="http://docs.python.org/library/functions.html#range">http://docs.python.org/library/functions.html#range</a>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[start=0]</code> <em>(Number)</em>: The start of the range.</li>
+<li><code>end</code> <em>(Number)</em>: The end of the range.</li>
+<li><code>[step=1]</code> <em>(Number)</em>: The value to increment or descrement by.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new range array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.range(10);
+// =&gt; [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+_.range(1, 11);
+// =&gt; [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+_.range(0, 30, 5);
+// =&gt; [0, 5, 10, 15, 20, 25]
+
+_.range(0, -10, -1);
+// =&gt; [0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
+
+_.range(0);
+// =&gt; []</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_restarray--n1"></a><code>_.rest(array [, n=1])</code></h3>
+<p><a href="#_restarray--n1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2920" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The opposite of <code>_.initial</code>, this method gets all but the first value of <code>array</code>. Pass <code>n</code> to exclude the first <code>n</code> values from the result.</p>
+<h4>Aliases</h4>
+<p><em>drop, tail</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to query.</li>
+<li><code>[n=1]</code> <em>(Number)</em>: The number of elements to exclude.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns all but the first value or <code>n</code> values of <code>array</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.rest([3, 2, 1]);
+// =&gt; [2, 1]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_sortedindexarray-value--callbackidentityproperty-thisarg"></a><code>_.sortedIndex(array, value [, callback=identity|property, thisArg])</code></h3>
+<p><a href="#_sortedindexarray-value--callbackidentityproperty-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2966" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Uses a binary search to determine the smallest index at which the <code>value</code> should be inserted into <code>array</code> in order to maintain the sort order of the sorted <code>array</code>. If <code>callback</code> is passed, it will be executed for <code>value</code> and each element in <code>array</code> to compute their sort ranking. The <code>callback</code> is bound to <code>thisArg</code> and invoked with one argument; <em>(value)</em>. The <code>callback</code> argument may also be the name of a property to order by.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to iterate over.</li>
+<li><code>value</code> <em>(Mixed)</em>: The value to evaluate.</li>
+<li><code>[callback=identity|property]</code> <em>(Function|String)</em>: The function called per iteration or property name to order by.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns the index at which the value should be inserted  into <code>array</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.sortedIndex([20, 30, 50], 40);
+// =&gt; 2
+
+_.sortedIndex([{ &#39;x&#39;: 20 }, { &#39;x&#39;: 30 }, { &#39;x&#39;: 50 }], { &#39;x&#39;: 40 }, &#39;x&#39;);
+// =&gt; 2
+
+var dict = {
+  &#39;wordToNumber&#39;: { &#39;twenty&#39;: 20, &#39;thirty&#39;: 30, &#39;fourty&#39;: 40, &#39;fifty&#39;: 50 }
+};
+
+_.sortedIndex([&#39;twenty&#39;, &#39;thirty&#39;, &#39;fifty&#39;], &#39;fourty&#39;, function(word) {
+  return dict.wordToNumber[word];
+});
+// =&gt; 2
+
+_.sortedIndex([&#39;twenty&#39;, &#39;thirty&#39;, &#39;fifty&#39;], &#39;fourty&#39;, function(word) {
+  return this.wordToNumber[word];
+}, dict);
+// =&gt; 2</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_unionarray1-array2-"></a><code>_.union([array1, array2, ...])</code></h3>
+<p><a href="#_unionarray1-array2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2997" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Computes the union of the passed-in arrays using strict equality for comparisons, i.e. <code>===</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[array1, array2, ...]</code> <em>(Array)</em>: Arrays to process.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of unique values, in order, that are  present in one or more of the arrays.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.union([1, 2, 3], [101, 2, 1, 10], [2, 1]);
+// =&gt; [1, 2, 3, 101, 10]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_uniqarray--issortedfalse-callbackidentity-thisarg"></a><code>_.uniq(array [, isSorted=false, callback=identity, thisArg])</code></h3>
+<p><a href="#_uniqarray--issortedfalse-callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3031" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a duplicate-value-free version of the <code>array</code> using strict equality for comparisons, i.e. <code>===</code>. If the <code>array</code> is already sorted, passing <code>true</code> for <code>isSorted</code> will run a faster algorithm. If <code>callback</code> is passed, each element of <code>array</code> is passed through a callback<code>before uniqueness is computed. The</code>callback<code>is bound to</code>thisArg` and invoked with three arguments; <em>(value, index, array)</em>.</p>
+<h4>Aliases</h4>
+<p><em>unique</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to process.</li>
+<li><code>[isSorted=false]</code> <em>(Boolean)</em>: A flag to indicate that the <code>array</code> is already sorted.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a duplicate-value-free array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.uniq([1, 2, 1, 3, 1]);
+// =&gt; [1, 2, 3]
+
+_.uniq([1, 1, 2, 2, 3], true);
+// =&gt; [1, 2, 3]
+
+_.uniq([1, 2, 1.5, 3, 2.5], function(num) { return Math.floor(num); });
+// =&gt; [1, 2, 3]
+
+_.uniq([1, 2, 1.5, 3, 2.5], function(num) { return this.floor(num); }, Math);
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_withoutarray--value1-value2-"></a><code>_.without(array [, value1, value2, ...])</code></h3>
+<p><a href="#_withoutarray--value1-value2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3089" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array with all occurrences of the passed values removed using strict equality for comparisons, i.e. <code>===</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>array</code> <em>(Array)</em>: The array to filter.</li>
+<li><code>[value1, value2, ...]</code> <em>(Mixed)</em>: Values to remove.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new filtered array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.without([1, 2, 1, 0, 3, 1, 4], 0, 1);
+// =&gt; [2, 3, 4]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_ziparray1-array2-"></a><code>_.zip([array1, array2, ...])</code></h3>
+<p><a href="#_ziparray1-array2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3120" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Groups the elements of each array at their corresponding indexes. Useful for separate data sources that are coordinated through matching array indexes. For a matrix of nested arrays, <code>_.zip.apply(...)</code> can transpose the matrix in a similar fashion.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[array1, array2, ...]</code> <em>(Array)</em>: Arrays to process.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of grouped elements.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.zip([&#39;moe&#39;, &#39;larry&#39;, &#39;curly&#39;], [30, 40, 50], [true, false, false]);
+// =&gt; [[&#39;moe&#39;, 30, true], [&#39;larry&#39;, 40, false], [&#39;curly&#39;, 50, false]]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Chaining” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_value"></a><code>_(value)</code></h3>
+<p><a href="#_value">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L242" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The <code>lodash</code> function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to wrap in a <code>lodash</code> instance.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns a <code>lodash</code> instance.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_chainvalue"></a><code>_.chain(value)</code></h3>
+<p><a href="#_chainvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3985" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Wraps the value in a <code>lodash</code> wrapper object.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to wrap.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the wrapper object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 },
+  { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 },
+  { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 }
+];
+
+var youngest = _.chain(stooges)
+    .sortBy(function(stooge) { return stooge.age; })
+    .map(function(stooge) { return stooge.name + &#39; is &#39; + stooge.age; })
+    .first()
+    .value();
+// =&gt; &#39;moe is 40&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_tapvalue-interceptor"></a><code>_.tap(value, interceptor)</code></h3>
+<p><a href="#_tapvalue-interceptor">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4012" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Invokes <code>interceptor</code> with the <code>value</code> as the first argument, and then returns <code>value</code>. The purpose of this method is to &quot;tap into&quot; a method chain, in order to perform operations on intermediate results within the chain.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to pass to <code>interceptor</code>.</li>
+<li><code>interceptor</code> <em>(Function)</em>: The function to invoke.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns <code>value</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.chain([1, 2, 3, 200])
+ .filter(function(num) { return num % 2 == 0; })
+ .tap(alert)
+ .map(function(num) { return num * num })
+ .value();
+// =&gt; // [2, 200] (alerted)
+// =&gt; [4, 40000]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_prototypechain"></a><code>_.prototype.chain()</code></h3>
+<p><a href="#_prototypechain">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4030" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Enables method chaining on the wrapper object.</p>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the wrapper object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_([1, 2, 3]).value();
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_prototypevalue"></a><code>_.prototype.value()</code></h3>
+<p><a href="#_prototypevalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4047" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Extracts the wrapped value.</p>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the wrapped value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_([1, 2, 3]).value();
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Collections” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_containscollection-target--fromindex0"></a><code>_.contains(collection, target [, fromIndex=0])</code></h3>
+<p><a href="#_containscollection-target--fromindex0">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1837" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if a given <code>target</code> element is present in a <code>collection</code> using strict equality for comparisons, i.e. <code>===</code>. If <code>fromIndex</code> is negative, it is used as the offset from the end of the collection.</p>
+<h4>Aliases</h4>
+<p><em>include</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>target</code> <em>(Mixed)</em>: The value to check for.</li>
+<li><code>[fromIndex=0]</code> <em>(Number)</em>: The index to search from.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>target</code> element is found, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.contains([1, 2, 3], 1);
+// =&gt; true
+
+_.contains([1, 2, 3], 1, 2);
+// =&gt; false
+
+_.contains({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }, &#39;moe&#39;);
+// =&gt; true
+
+_.contains(&#39;curly&#39;, &#39;ur&#39;);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_countbycollection-callbackproperty--thisarg"></a><code>_.countBy(collection, callback|property [, thisArg])</code></h3>
+<p><a href="#_countbycollection-callbackproperty--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1879" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an object composed of keys returned from running each element of <code>collection</code> through a <code>callback</code>. The corresponding value of each key is the number of times the key was returned by <code>callback</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>. The <code>callback</code> argument may also be the name of a property to count by <em>(e.g. &#39;length&#39;)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback|property</code> <em>(Function|String)</em>: The function called per iteration or property name to count by.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the composed aggregate object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.countBy([4.3, 6.1, 6.4], function(num) { return Math.floor(num); });
+// =&gt; { &#39;4&#39;: 1, &#39;6&#39;: 2 }
+
+_.countBy([4.3, 6.1, 6.4], function(num) { return this.floor(num); }, Math);
+// =&gt; { &#39;4&#39;: 1, &#39;6&#39;: 2 }
+
+_.countBy([&#39;one&#39;, &#39;two&#39;, &#39;three&#39;], &#39;length&#39;);
+// =&gt; { &#39;3&#39;: 2, &#39;5&#39;: 1 }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_everycollection--callbackidentity-thisarg"></a><code>_.every(collection [, callback=identity, thisArg])</code></h3>
+<p><a href="#_everycollection--callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1908" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if the <code>callback</code> returns a truthy value for <strong>all</strong> elements of a <code>collection</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>all</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if all elements pass the callback check,  else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.every([true, 1, null, &#39;yes&#39;], Boolean);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_filtercollection--callbackidentity-thisarg"></a><code>_.filter(collection [, callback=identity, thisArg])</code></h3>
+<p><a href="#_filtercollection--callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1947" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Examines each element in a <code>collection</code>, returning an array of all elements the <code>callback</code> returns truthy for. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>select</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of elements that passed the callback check.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var evens = _.filter([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
+// =&gt; [2, 4, 6]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_findcollection-callback--thisarg"></a><code>_.find(collection, callback [, thisArg])</code></h3>
+<p><a href="#_findcollection-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1978" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Examines each element in a <code>collection</code>, returning the first one the <code>callback</code> returns truthy for. The function returns as soon as it finds an acceptable element, and does not iterate over the entire <code>collection</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>detect</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the element that passed the callback check,  else <code>undefined</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var even = _.find([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
+// =&gt; 2</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_foreachcollection-callback--thisarg"></a><code>_.forEach(collection, callback [, thisArg])</code></h3>
+<p><a href="#_foreachcollection-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2012" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Iterates over a <code>collection</code>, executing the <code>callback</code> for each element in the <code>collection</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>. Callbacks may exit iteration early by explicitly returning <code>false</code>.</p>
+<h4>Aliases</h4>
+<p><em>each</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array, Object, String)</em>: Returns <code>collection</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_([1, 2, 3]).forEach(alert).join(&#39;,&#39;);
+// =&gt; alerts each number and returns &#39;1,2,3&#39;
+
+_.forEach({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 }, alert);
+// =&gt; alerts each number (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_groupbycollection-callbackproperty--thisarg"></a><code>_.groupBy(collection, callback|property [, thisArg])</code></h3>
+<p><a href="#_groupbycollection-callbackproperty--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2040" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an object composed of keys returned from running each element of <code>collection</code> through a <code>callback</code>. The corresponding value of each key is an array of elements passed to <code>callback</code> that returned the key. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>. The <code>callback</code> argument may also be the name of a property to group by <em>(e.g. &#39;length&#39;)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback|property</code> <em>(Function|String)</em>: The function called per iteration or property name to group by.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the composed aggregate object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.groupBy([4.2, 6.1, 6.4], function(num) { return Math.floor(num); });
+// =&gt; { &#39;4&#39;: [4.2], &#39;6&#39;: [6.1, 6.4] }
+
+_.groupBy([4.2, 6.1, 6.4], function(num) { return this.floor(num); }, Math);
+// =&gt; { &#39;4&#39;: [4.2], &#39;6&#39;: [6.1, 6.4] }
+
+_.groupBy([&#39;one&#39;, &#39;two&#39;, &#39;three&#39;], &#39;length&#39;);
+// =&gt; { &#39;3&#39;: [&#39;one&#39;, &#39;two&#39;], &#39;5&#39;: [&#39;three&#39;] }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_invokecollection-methodname--arg1-arg2-"></a><code>_.invoke(collection, methodName [, arg1, arg2, ...])</code></h3>
+<p><a href="#_invokecollection-methodname--arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2072" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Invokes the method named by <code>methodName</code> on each element in the <code>collection</code>, returning an array of the results of each invoked method. Additional arguments will be passed to each invoked method. If <code>methodName</code> is a function it will be invoked for, and <code>this</code> bound to, each element in the <code>collection</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>methodName</code> <em>(Function|String)</em>: The name of the method to invoke or the function invoked per iteration.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to invoke the method with.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of the results of each invoked method.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.invoke([[5, 1, 7], [3, 2, 1]], &#39;sort&#39;);
+// =&gt; [[1, 5, 7], [1, 2, 3]]
+
+_.invoke([123, 456], String.prototype.split, &#39;&#39;);
+// =&gt; [[&#39;1&#39;, &#39;2&#39;, &#39;3&#39;], [&#39;4&#39;, &#39;5&#39;, &#39;6&#39;]]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mapcollection--callbackidentity-thisarg"></a><code>_.map(collection [, callback=identity, thisArg])</code></h3>
+<p><a href="#_mapcollection--callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2104" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array of values by running each element in the <code>collection</code> through a <code>callback</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>collect</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of the results of each <code>callback</code> execution.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.map([1, 2, 3], function(num) { return num * 3; });
+// =&gt; [3, 6, 9]
+
+_.map({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 }, function(num) { return num * 3; });
+// =&gt; [3, 6, 9] (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_maxcollection--callback-thisarg"></a><code>_.max(collection [, callback, thisArg])</code></h3>
+<p><a href="#_maxcollection--callback-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2146" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Retrieves the maximum value of an <code>array</code>. If <code>callback</code> is passed, it will be executed for each value in the <code>array</code> to generate the criterion by which the value is ranked. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index, collection)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the maximum value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 },
+  { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 },
+  { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 }
+];
+
+_.max(stooges, function(stooge) { return stooge.age; });
+// =&gt; { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 };</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mincollection--callback-thisarg"></a><code>_.min(collection [, callback, thisArg])</code></h3>
+<p><a href="#_mincollection--callback-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2192" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Retrieves the minimum value of an <code>array</code>. If <code>callback</code> is passed, it will be executed for each value in the <code>array</code> to generate the criterion by which the value is ranked. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index, collection)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the minimum value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.min([10, 5, 100, 2, 1000]);
+// =&gt; 2</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_pluckcollection-property"></a><code>_.pluck(collection, property)</code></h3>
+<p><a href="#_pluckcollection-property">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2241" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Retrieves the value of a specified property from all elements in the <code>collection</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>property</code> <em>(String)</em>: The property to pluck.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property values.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 },
+  { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 },
+  { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 }
+];
+
+_.pluck(stooges, &#39;name&#39;);
+// =&gt; [&#39;moe&#39;, &#39;larry&#39;, &#39;curly&#39;]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_reducecollection-callback--accumulator-thisarg"></a><code>_.reduce(collection, callback [, accumulator, thisArg])</code></h3>
+<p><a href="#_reducecollection-callback--accumulator-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2269" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Boils down a <code>collection</code> to a single value. The initial state of the reduction is <code>accumulator</code> and each successive step of it should be returned by the <code>callback</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with <code>4</code> arguments; for arrays they are <em>(accumulator, value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>foldl, inject</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[accumulator]</code> <em>(Mixed)</em>: Initial value of the accumulator.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the accumulated value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var sum = _.reduce([1, 2, 3], function(memo, num) { return memo + num; });
+// =&gt; 6</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_reducerightcollection-callback--accumulator-thisarg"></a><code>_.reduceRight(collection, callback [, accumulator, thisArg])</code></h3>
+<p><a href="#_reducerightcollection-callback--accumulator-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2298" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The right-associative version of <code>_.reduce</code>.</p>
+<h4>Aliases</h4>
+<p><em>foldr</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[accumulator]</code> <em>(Mixed)</em>: Initial value of the accumulator.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the accumulated value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var list = [[0, 1], [2, 3], [4, 5]];
+var flat = _.reduceRight(list, function(a, b) { return a.concat(b); }, []);
+// =&gt; [4, 5, 2, 3, 0, 1]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_rejectcollection--callbackidentity-thisarg"></a><code>_.reject(collection [, callback=identity, thisArg])</code></h3>
+<p><a href="#_rejectcollection--callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2335" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The opposite of <code>_.filter</code>, this method returns the values of a <code>collection</code> that <code>callback</code> does <strong>not</strong> return truthy for.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of elements that did <strong>not</strong> pass the  callback check.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var odds = _.reject([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
+// =&gt; [1, 3, 5]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_shufflecollection"></a><code>_.shuffle(collection)</code></h3>
+<p><a href="#_shufflecollection">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2356" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array of shuffled <code>array</code> values, using a version of the Fisher-Yates shuffle. See <a href="http://en.wikipedia.org/wiki/Fisher-Yates_shuffle">http://en.wikipedia.org/wiki/Fisher-Yates_shuffle</a>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to shuffle.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new shuffled collection.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.shuffle([1, 2, 3, 4, 5, 6]);
+// =&gt; [4, 1, 6, 3, 5, 2]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_sizecollection"></a><code>_.size(collection)</code></h3>
+<p><a href="#_sizecollection">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2388" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Gets the size of the <code>collection</code> by returning <code>collection.length</code> for arrays and array-like objects or the number of own enumerable properties for objects.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns <code>collection.length</code> or number of own enumerable properties.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.size([1, 2]);
+// =&gt; 2
+
+_.size({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 });
+// =&gt; 3
+
+_.size(&#39;curly&#39;);
+// =&gt; 5</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_somecollection--callbackidentity-thisarg"></a><code>_.some(collection [, callback=identity, thisArg])</code></h3>
+<p><a href="#_somecollection--callbackidentity-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2413" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if the <code>callback</code> returns a truthy value for <strong>any</strong> element of a <code>collection</code>. The function returns as soon as it finds passing value, and does not iterate over the entire <code>collection</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>.</p>
+<h4>Aliases</h4>
+<p><em>any</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>[callback=identity]</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if any element passes the callback check,  else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.some([null, 0, &#39;yes&#39;, false]);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_sortbycollection-callbackproperty--thisarg"></a><code>_.sortBy(collection, callback|property [, thisArg])</code></h3>
+<p><a href="#_sortbycollection-callbackproperty--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2459" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array, stable sorted in ascending order by the results of running each element of <code>collection</code> through a <code>callback</code>. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, index|key, collection)</em>. The <code>callback</code> argument may also be the name of a property to sort by <em>(e.g. &#39;length&#39;)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>callback|property</code> <em>(Function|String)</em>: The function called per iteration or property name to sort by.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of sorted elements.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.sortBy([1, 2, 3], function(num) { return Math.sin(num); });
+// =&gt; [3, 1, 2]
+
+_.sortBy([1, 2, 3], function(num) { return this.sin(num); }, Math);
+// =&gt; [3, 1, 2]
+
+_.sortBy([&#39;larry&#39;, &#39;brendan&#39;, &#39;moe&#39;], &#39;length&#39;);
+// =&gt; [&#39;moe&#39;, &#39;larry&#39;, &#39;brendan&#39;]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_toarraycollection"></a><code>_.toArray(collection)</code></h3>
+<p><a href="#_toarraycollection">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2491" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Converts the <code>collection</code>, to an array.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to convert.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns the new converted array.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">(function() { return _.toArray(arguments).slice(1); })(1, 2, 3, 4);
+// =&gt; [2, 3, 4]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_wherecollection-properties"></a><code>_.where(collection, properties)</code></h3>
+<p><a href="#_wherecollection-properties">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2521" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Examines each element in a <code>collection</code>, returning an array of all elements that contain the given <code>properties</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>collection</code> <em>(Array|Object|String)</em>: The collection to iterate over.</li>
+<li><code>properties</code> <em>(Object)</em>: The object of property values to filter by.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of elements that contain the given <code>properties</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 },
+  { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 },
+  { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 }
+];
+
+_.where(stooges, { &#39;age&#39;: 40 });
+// =&gt; [{ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Functions” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_aftern-func"></a><code>_.after(n, func)</code></h3>
+<p><a href="#_aftern-func">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3153" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that is restricted to executing <code>func</code> only after it is called <code>n</code> times. The <code>func</code> is executed with the <code>this</code> binding of the created function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>n</code> <em>(Number)</em>: The number of times the function must be called before it is executed.</li>
+<li><code>func</code> <em>(Function)</em>: The function to restrict.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new restricted function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var renderNotes = _.after(notes.length, render);
+_.forEach(notes, function(note) {
+  note.asyncSave({ &#39;success&#39;: renderNotes });
+});
+// `renderNotes` is run once, after all notes have saved</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_bindfunc--thisarg-arg1-arg2-"></a><code>_.bind(func [, thisArg, arg1, arg2, ...])</code></h3>
+<p><a href="#_bindfunc--thisarg-arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3186" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that, when called, invokes <code>func</code> with the <code>this</code> binding of <code>thisArg</code> and prepends any additional <code>bind</code> arguments to those passed to the bound function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to bind.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>func</code>.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to be partially applied.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new bound function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var func = function(greeting) {
+  return greeting + &#39; &#39; + this.name;
+};
+
+func = _.bind(func, { &#39;name&#39;: &#39;moe&#39; }, &#39;hi&#39;);
+func();
+// =&gt; &#39;hi moe&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_bindallobject--methodname1-methodname2-"></a><code>_.bindAll(object [, methodName1, methodName2, ...])</code></h3>
+<p><a href="#_bindallobject--methodname1-methodname2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3216" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Binds methods on <code>object</code> to <code>object</code>, overwriting the existing method. If no method names are provided, all the function properties of <code>object</code> will be bound.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to bind and assign the bound methods to.</li>
+<li><code>[methodName1, methodName2, ...]</code> <em>(String)</em>: Method names on the object to bind.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns <code>object</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var buttonView = {
+ &#39;label&#39;: &#39;lodash&#39;,
+ &#39;onClick&#39;: function() { alert(&#39;clicked: &#39; + this.label); }
+};
+
+_.bindAll(buttonView);
+jQuery(&#39;#lodash_button&#39;).on(&#39;click&#39;, buttonView.onClick);
+// =&gt; When the button is clicked, `this.label` will have the correct value</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_composefunc1-func2-"></a><code>_.compose([func1, func2, ...])</code></h3>
+<p><a href="#_composefunc1-func2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3247" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that is the composition of the passed functions, where each function consumes the return value of the function that follows. In math terms, composing the functions <code>f()</code>, <code>g()</code>, and <code>h()</code> produces <code>f(g(h()))</code>. Each function is executed with the <code>this</code> binding of the composed function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[func1, func2, ...]</code> <em>(Function)</em>: Functions to compose.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new composed function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var greet = function(name) { return &#39;hi: &#39; + name; };
+var exclaim = function(statement) { return statement + &#39;!&#39;; };
+var welcome = _.compose(exclaim, greet);
+welcome(&#39;moe&#39;);
+// =&gt; &#39;hi: moe!&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_debouncefunc-wait-immediate"></a><code>_.debounce(func, wait, immediate)</code></h3>
+<p><a href="#_debouncefunc-wait-immediate">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3280" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that will delay the execution of <code>func</code> until after <code>wait</code> milliseconds have elapsed since the last time it was invoked. Pass <code>true</code> for <code>immediate</code> to cause debounce to invoke <code>func</code> on the leading, instead of the trailing, edge of the <code>wait</code> timeout. Subsequent calls to the debounced function will return the result of the last <code>func</code> call.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to debounce.</li>
+<li><code>wait</code> <em>(Number)</em>: The number of milliseconds to delay.</li>
+<li><code>immediate</code> <em>(Boolean)</em>: A flag to indicate execution is on the leading edge of the timeout.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new debounced function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var lazyLayout = _.debounce(calculateLayout, 300);
+jQuery(window).on(&#39;resize&#39;, lazyLayout);</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_deferfunc--arg1-arg2-"></a><code>_.defer(func [, arg1, arg2, ...])</code></h3>
+<p><a href="#_deferfunc--arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3344" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Defers executing the <code>func</code> function until the current call stack has cleared. Additional arguments will be passed to <code>func</code> when it is invoked.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to defer.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to invoke the function with.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns the <code>setTimeout</code> timeout id.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.defer(function() { alert(&#39;deferred&#39;); });
+// returns from the function before `alert` is called</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_delayfunc-wait--arg1-arg2-"></a><code>_.delay(func, wait [, arg1, arg2, ...])</code></h3>
+<p><a href="#_delayfunc-wait--arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3324" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Executes the <code>func</code> function after <code>wait</code> milliseconds. Additional arguments will be passed to <code>func</code> when it is invoked.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to delay.</li>
+<li><code>wait</code> <em>(Number)</em>: The number of milliseconds to delay execution.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to invoke the function with.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns the <code>setTimeout</code> timeout id.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var log = _.bind(console.log, console);
+_.delay(log, 1000, &#39;logged later&#39;);
+// =&gt; &#39;logged later&#39; (Appears after one second.)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_latebindobject-methodname--arg1-arg2-"></a><code>_.lateBind(object, methodName [, arg1, arg2, ...])</code></h3>
+<p><a href="#_latebindobject-methodname--arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3382" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that, when called, invokes <code>object[methodName]</code> and prepends any additional <code>lateBind</code> arguments to those passed to the bound function. This method differs from <code>_.bind</code> by allowing bound functions to reference methods that will be redefined or don&#39;t yet exist.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object the method belongs to.</li>
+<li><code>methodName</code> <em>(String)</em>: The method name.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to be partially applied.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new bound function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var object = {
+  &#39;name&#39;: &#39;moe&#39;,
+  &#39;greet&#39;: function(greeting) {
+    return greeting + &#39; &#39; + this.name;
+  }
+};
+
+var func = _.lateBind(object, &#39;greet&#39;, &#39;hi&#39;);
+func();
+// =&gt; &#39;hi moe&#39;
+
+object.greet = function(greeting) {
+  return greeting + &#39;, &#39; + this.name + &#39;!&#39;;
+};
+
+func();
+// =&gt; &#39;hi, moe!&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_memoizefunc--resolver"></a><code>_.memoize(func [, resolver])</code></h3>
+<p><a href="#_memoizefunc--resolver">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3405" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that memoizes the result of <code>func</code>. If <code>resolver</code> is passed, it will be used to determine the cache key for storing the result based on the arguments passed to the memoized function. By default, the first argument passed to the memoized function is used as the cache key. The <code>func</code> is executed with the <code>this</code> binding of the memoized function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to have its output memoized.</li>
+<li><code>[resolver]</code> <em>(Function)</em>: A function used to resolve the cache key.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new memoizing function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var fibonacci = _.memoize(function(n) {
+  return n &lt; 2 ? n : fibonacci(n - 1) + fibonacci(n - 2);
+});</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_oncefunc"></a><code>_.once(func)</code></h3>
+<p><a href="#_oncefunc">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3432" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that is restricted to execute <code>func</code> once. Repeat calls to the function will return the value of the first call. The <code>func</code> is executed with the <code>this</code> binding of the created function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to restrict.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new restricted function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var initialize = _.once(createApplication);
+initialize();
+initialize();
+// Application is only created once.</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_partialfunc--arg1-arg2-"></a><code>_.partial(func [, arg1, arg2, ...])</code></h3>
+<p><a href="#_partialfunc--arg1-arg2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3467" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that, when called, invokes <code>func</code> with any additional <code>partial</code> arguments prepended to those passed to the new function. This method is similar to <code>bind</code>, except it does <strong>not</strong> alter the <code>this</code> binding.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to partially apply arguments to.</li>
+<li><code>[arg1, arg2, ...]</code> <em>(Mixed)</em>: Arguments to be partially applied.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new partially applied function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var greet = function(greeting, name) { return greeting + &#39;: &#39; + name; };
+var hi = _.partial(greet, &#39;hi&#39;);
+hi(&#39;moe&#39;);
+// =&gt; &#39;hi: moe&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_throttlefunc-wait"></a><code>_.throttle(func, wait)</code></h3>
+<p><a href="#_throttlefunc-wait">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3489" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that, when executed, will only call the <code>func</code> function at most once per every <code>wait</code> milliseconds. If the throttled function is invoked more than once during the <code>wait</code> timeout, <code>func</code> will also be called on the trailing edge of the timeout. Subsequent calls to the throttled function will return the result of the last <code>func</code> call.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>func</code> <em>(Function)</em>: The function to throttle.</li>
+<li><code>wait</code> <em>(Number)</em>: The number of milliseconds to throttle executions to.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new throttled function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var throttled = _.throttle(updatePosition, 100);
+jQuery(window).on(&#39;scroll&#39;, throttled);</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_wrapvalue-wrapper"></a><code>_.wrap(value, wrapper)</code></h3>
+<p><a href="#_wrapvalue-wrapper">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3541" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a function that passes <code>value</code> to the <code>wrapper</code> function as its first argument. Additional arguments passed to the function are appended to those passed to the <code>wrapper</code> function. The <code>wrapper</code> is executed with the <code>this</code> binding of the created function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to wrap.</li>
+<li><code>wrapper</code> <em>(Function)</em>: The wrapper function.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the new function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var hello = function(name) { return &#39;hello &#39; + name; };
+hello = _.wrap(hello, function(func) {
+  return &#39;before, &#39; + func(&#39;moe&#39;) + &#39;, after&#39;;
+});
+hello();
+// =&gt; &#39;before, hello moe, after&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Objects” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_clonevalue-deep"></a><code>_.clone(value, deep)</code></h3>
+<p><a href="#_clonevalue-deep">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L896" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a clone of <code>value</code>. If <code>deep</code> is <code>true</code>, all nested objects will also be cloned otherwise they will be assigned by reference. Functions, DOM nodes, <code>arguments</code> objects, and objects created by constructors other than <code>Object</code> are <strong>not</strong> cloned.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to clone.</li>
+<li><code>deep</code> <em>(Boolean)</em>: A flag to indicate a deep clone.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the cloned <code>value</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 },
+  { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 },
+  { &#39;name&#39;: &#39;curly&#39;, &#39;age&#39;: 60 }
+];
+
+_.clone({ &#39;name&#39;: &#39;moe&#39; });
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }
+
+var shallow = _.clone(stooges);
+shallow[0] === stooges[0];
+// =&gt; true
+
+var deep = _.clone(stooges, true);
+shallow[0] === stooges[0];
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_defaultsobject--default1-default2-"></a><code>_.defaults(object [, default1, default2, ...])</code></h3>
+<p><a href="#_defaultsobject--default1-default2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L979" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Assigns enumerable properties of the default object(s) to the <code>destination</code> object for all <code>destination</code> properties that resolve to <code>null</code>/<code>undefined</code>. Once a property is set, additional defaults of the same property will be ignored.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The destination object.</li>
+<li><code>[default1, default2, ...]</code> <em>(Object)</em>: The default objects.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the destination object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var iceCream = { &#39;flavor&#39;: &#39;chocolate&#39; };
+_.defaults(iceCream, { &#39;flavor&#39;: &#39;vanilla&#39;, &#39;sprinkles&#39;: &#39;rainbow&#39; });
+// =&gt; { &#39;flavor&#39;: &#39;chocolate&#39;, &#39;sprinkles&#39;: &#39;rainbow&#39; }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_extendobject--source1-source2-"></a><code>_.extend(object [, source1, source2, ...])</code></h3>
+<p><a href="#_extendobject--source1-source2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L999" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Assigns enumerable properties of the source object(s) to the <code>destination</code> object. Subsequent sources will overwrite propery assignments of previous sources.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The destination object.</li>
+<li><code>[source1, source2, ...]</code> <em>(Object)</em>: The source objects.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the destination object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.extend({ &#39;name&#39;: &#39;moe&#39; }, { &#39;age&#39;: 40 });
+// =&gt; { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_forinobject-callback--thisarg"></a><code>_.forIn(object, callback [, thisArg])</code></h3>
+<p><a href="#_forinobject-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L754" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Iterates over <code>object</code>&#39;s own and inherited enumerable properties, executing the <code>callback</code> for each property. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>. Callbacks may exit iteration early by explicitly returning <code>false</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns <code>object</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">function Dog(name) {
+  this.name = name;
+}
+
+Dog.prototype.bark = function() {
+  alert(&#39;Woof, woof!&#39;);
+};
+
+_.forIn(new Dog(&#39;Dagny&#39;), function(value, key) {
+  alert(key);
+});
+// =&gt; alerts &#39;name&#39; and &#39;bark&#39; (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_forownobject-callback--thisarg"></a><code>_.forOwn(object, callback [, thisArg])</code></h3>
+<p><a href="#_forownobject-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L778" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Iterates over <code>object</code>&#39;s own enumerable properties, executing the <code>callback</code> for each property. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>. Callbacks may exit iteration early by explicitly returning <code>false</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to iterate over.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns <code>object</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.forOwn({ &#39;0&#39;: &#39;zero&#39;, &#39;1&#39;: &#39;one&#39;, &#39;length&#39;: 2 }, function(num, key) {
+  alert(key);
+});
+// =&gt; alerts &#39;0&#39;, &#39;1&#39;, and &#39;length&#39; (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_functionsobject"></a><code>_.functions(object)</code></h3>
+<p><a href="#_functionsobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1016" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a sorted array of all enumerable properties, own and inherited, of <code>object</code> that have function values.</p>
+<h4>Aliases</h4>
+<p><em>methods</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property names that have function values.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.functions(_);
+// =&gt; [&#39;all&#39;, &#39;any&#39;, &#39;bind&#39;, &#39;bindAll&#39;, &#39;clone&#39;, &#39;compact&#39;, &#39;compose&#39;, ...]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_hasobject-property"></a><code>_.has(object, property)</code></h3>
+<p><a href="#_hasobject-property">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1041" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if the specified object <code>property</code> exists and is a direct property, instead of an inherited property.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to check.</li>
+<li><code>property</code> <em>(String)</em>: The property to check for.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if key is a direct property, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.has({ &#39;a&#39;: 1, &#39;b&#39;: 2, &#39;c&#39;: 3 }, &#39;b&#39;);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_invertobject"></a><code>_.invert(object)</code></h3>
+<p><a href="#_invertobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1058" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an object composed of the inverted keys and values of the given <code>object</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to invert.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the created inverted object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.invert({ &#39;first&#39;: &#39;Moe&#39;, &#39;second&#39;: &#39;Larry&#39;, &#39;third&#39;: &#39;Curly&#39; });
+// =&gt; { &#39;Moe&#39;: &#39;first&#39;, &#39;Larry&#39;: &#39;second&#39;, &#39;Curly&#39;: &#39;third&#39; } (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isargumentsvalue"></a><code>_.isArguments(value)</code></h3>
+<p><a href="#_isargumentsvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L716" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is an <code>arguments</code> object.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is an <code>arguments</code> object, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">(function() { return _.isArguments(arguments); })(1, 2, 3);
+// =&gt; true
+
+_.isArguments([1, 2, 3]);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isarrayvalue"></a><code>_.isArray(value)</code></h3>
+<p><a href="#_isarrayvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1082" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is an array.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is an array, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">(function() { return _.isArray(arguments); })();
+// =&gt; false
+
+_.isArray([1, 2, 3]);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isbooleanvalue"></a><code>_.isBoolean(value)</code></h3>
+<p><a href="#_isbooleanvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1099" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a boolean <em>(<code>true</code> or <code>false</code>)</em> value.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a boolean value, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isBoolean(null);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isdatevalue"></a><code>_.isDate(value)</code></h3>
+<p><a href="#_isdatevalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1116" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a date.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a date, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isDate(new Date);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_iselementvalue"></a><code>_.isElement(value)</code></h3>
+<p><a href="#_iselementvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1133" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a DOM element.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a DOM element, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isElement(document.body);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isemptyvalue"></a><code>_.isEmpty(value)</code></h3>
+<p><a href="#_isemptyvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1158" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is empty. Arrays, strings, or <code>arguments</code> objects with a length of <code>0</code> and objects with no own enumerable properties are considered &quot;empty&quot;.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Array|Object|String)</em>: The value to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is empty, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isEmpty([1, 2, 3]);
+// =&gt; false
+
+_.isEmpty({});
+// =&gt; true
+
+_.isEmpty(&#39;&#39;);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isequala-b"></a><code>_.isEqual(a, b)</code></h3>
+<p><a href="#_isequala-b">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1200" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Performs a deep comparison between two values to determine if they are equivalent to each other.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>a</code> <em>(Mixed)</em>: The value to compare.</li>
+<li><code>b</code> <em>(Mixed)</em>: The other value to compare.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the values are equvalent, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var moe = { &#39;name&#39;: &#39;moe&#39;, &#39;luckyNumbers&#39;: [13, 27, 34] };
+var clone = { &#39;name&#39;: &#39;moe&#39;, &#39;luckyNumbers&#39;: [13, 27, 34] };
+
+moe == clone;
+// =&gt; false
+
+_.isEqual(moe, clone);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isfinitevalue"></a><code>_.isFinite(value)</code></h3>
+<p><a href="#_isfinitevalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1362" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is, or can be coerced to, a finite number.  Note: This is not the same as native <code>isFinite</code>, which will return true for booleans and empty strings. See <a href="http://es5.github.com/#x15.1.2.5">http://es5.github.com/#x15.1.2.5</a>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a finite number, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isFinite(-101);
+// =&gt; true
+
+_.isFinite(&#39;10&#39;);
+// =&gt; true
+
+_.isFinite(true);
+// =&gt; false
+
+_.isFinite(&#39;&#39;);
+// =&gt; false
+
+_.isFinite(Infinity);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isfunctionvalue"></a><code>_.isFunction(value)</code></h3>
+<p><a href="#_isfunctionvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1379" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a function.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a function, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isFunction(_);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isnanvalue"></a><code>_.isNaN(value)</code></h3>
+<p><a href="#_isnanvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1443" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is <code>NaN</code>.  Note: This is not the same as native <code>isNaN</code>, which will return true for <code>undefined</code> and other values. See <a href="http://es5.github.com/#x15.1.2.4">http://es5.github.com/#x15.1.2.4</a>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is <code>NaN</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNaN(NaN);
+// =&gt; true
+
+_.isNaN(new Number(NaN));
+// =&gt; true
+
+isNaN(undefined);
+// =&gt; true
+
+_.isNaN(undefined);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isnullvalue"></a><code>_.isNull(value)</code></h3>
+<p><a href="#_isnullvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1466" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is <code>null</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is <code>null</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNull(null);
+// =&gt; true
+
+_.isNull(undefined);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isnumbervalue"></a><code>_.isNumber(value)</code></h3>
+<p><a href="#_isnumbervalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1483" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a number.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a number, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNumber(8.4 * 5);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isobjectvalue"></a><code>_.isObject(value)</code></h3>
+<p><a href="#_isobjectvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1409" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is the language type of Object. <em>(e.g. arrays, functions, objects, regexes, <code>new Number(0)</code>, and <code>new String(&#39;&#39;)</code>)</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is an object, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isObject({});
+// =&gt; true
+
+_.isObject([1, 2, 3]);
+// =&gt; true
+
+_.isObject(1);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isplainobjectvalue"></a><code>_.isPlainObject(value)</code></h3>
+<p><a href="#_isplainobjectvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1511" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if a given <code>value</code> is an object created by the <code>Object</code> constructor.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if <code>value</code> is a plain object, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">function Stooge(name, age) {
+  this.name = name;
+  this.age = age;
+}
+
+_.isPlainObject(new Stooge(&#39;moe&#39;, 40));
+// =&gt; false
+
+_.isPlainObject([1, 2, 3]);
+// =&gt; false
+
+_.isPlainObject({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 });
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isregexpvalue"></a><code>_.isRegExp(value)</code></h3>
+<p><a href="#_isregexpvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1536" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a regular expression.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a regular expression, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isRegExp(/moe/);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isstringvalue"></a><code>_.isString(value)</code></h3>
+<p><a href="#_isstringvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1553" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a string.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is a string, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isString(&#39;moe&#39;);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isundefinedvalue"></a><code>_.isUndefined(value)</code></h3>
+<p><a href="#_isundefinedvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1571" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is <code>undefined</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code> if the <code>value</code> is <code>undefined</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isUndefined(void 0);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_keysobject"></a><code>_.keys(object)</code></h3>
+<p><a href="#_keysobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1588" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array composed of the own enumerable property names of <code>object</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property names.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.keys({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 });
+// =&gt; [&#39;one&#39;, &#39;two&#39;, &#39;three&#39;] (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mergeobject--source1-source2-"></a><code>_.merge(object [, source1, source2, ...])</code></h3>
+<p><a href="#_mergeobject--source1-source2-">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1626" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Merges enumerable properties of the source object(s) into the <code>destination</code> object. Subsequent sources will overwrite propery assignments of previous sources.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The destination object.</li>
+<li><code>[source1, source2, ...]</code> <em>(Object)</em>: The source objects.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the destination object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var stooges = [
+  { &#39;name&#39;: &#39;moe&#39; },
+  { &#39;name&#39;: &#39;larry&#39; }
+];
+
+var ages = [
+  { &#39;age&#39;: 40 },
+  { &#39;age&#39;: 50 }
+];
+
+_.merge(stooges, ages);
+// =&gt; [{ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }, { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 }]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_omitobject-callback-prop1-prop2--thisarg"></a><code>_.omit(object, callback|[prop1, prop2, ..., thisArg])</code></h3>
+<p><a href="#_omitobject-callback-prop1-prop2--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1696" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a shallow clone of <code>object</code> excluding the specified properties. Property names may be specified as individual arguments or as arrays of property names. If <code>callback</code> is passed, it will be executed for each property in the <code>object</code>, omitting the properties <code>callback</code> returns truthy for. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The source object.</li>
+<li><code>callback|[prop1, prop2, ...]</code> <em>(Function|String)</em>: The properties to omit or the function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns an object without the omitted properties.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.omit({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40, &#39;userid&#39;: &#39;moe1&#39; }, &#39;userid&#39;);
+// =&gt; { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }
+
+_.omit({ &#39;name&#39;: &#39;moe&#39;, &#39;_hint&#39;: &#39;knucklehead&#39;, &#39;_seed&#39;: &#39;96c4eb&#39; }, function(value, key) {
+  return key.charAt(0) == &#39;_&#39;;
+});
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_pairsobject"></a><code>_.pairs(object)</code></h3>
+<p><a href="#_pairsobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1730" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a two dimensional array of the given object&#39;s key-value pairs, i.e. <code>[[key1, value1], [key2, value2]]</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns new array of key-value pairs.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.pairs({ &#39;moe&#39;: 30, &#39;larry&#39;: 40, &#39;curly&#39;: 50 });
+// =&gt; [[&#39;moe&#39;, 30], [&#39;larry&#39;, 40], [&#39;curly&#39;, 50]] (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_pickobject-callback-prop1-prop2--thisarg"></a><code>_.pick(object, callback|[prop1, prop2, ..., thisArg])</code></h3>
+<p><a href="#_pickobject-callback-prop1-prop2--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1763" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a shallow clone of <code>object</code> composed of the specified properties. Property names may be specified as individual arguments or as arrays of property names. If <code>callback</code> is passed, it will be executed for each property in the <code>object</code>, picking the properties <code>callback</code> returns truthy for. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The source object.</li>
+<li><code>callback|[prop1, prop2, ...]</code> <em>(Function|String)</em>: The properties to pick or the function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns an object composed of the picked properties.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.pick({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40, &#39;userid&#39;: &#39;moe1&#39; }, &#39;name&#39;, &#39;age&#39;);
+// =&gt; { &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }
+
+_.pick({ &#39;name&#39;: &#39;moe&#39;, &#39;_hint&#39;: &#39;knucklehead&#39;, &#39;_seed&#39;: &#39;96c4eb&#39; }, function(value, key) {
+  return key.charAt(0) != &#39;_&#39;;
+});
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_valuesobject"></a><code>_.values(object)</code></h3>
+<p><a href="#_valuesobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1800" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array composed of the own enumerable property values of <code>object</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property values.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.values({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 });
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Utilities” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_escapestring"></a><code>_.escape(string)</code></h3>
+<p><a href="#_escapestring">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3565" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Converts the characters <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&quot;</code>, and <code>&#39;</code> in <code>string</code> to their corresponding HTML entities.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>string</code> <em>(String)</em>: The string to escape.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(String)</em>: Returns the escaped string.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.escape(&#39;Moe, Larry &amp; Curly&#39;);
+// =&gt; &quot;Moe, Larry &amp;amp; Curly&quot;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_identityvalue"></a><code>_.identity(value)</code></h3>
+<p><a href="#_identityvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3585" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>This function returns the first argument passed to it.  Note: It is used throughout Lo-Dash as a default callback.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: Any value.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns <code>value</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var moe = { &#39;name&#39;: &#39;moe&#39; };
+moe === _.identity(moe);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mixinobject"></a><code>_.mixin(object)</code></h3>
+<p><a href="#_mixinobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3611" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Adds functions properties of <code>object</code> to the <code>lodash</code> function and chainable wrapper.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object of function properties to add to <code>lodash</code>.</li>
+</ol>
+<h4>Example</h4>
+<pre><code class="lang-js">_.mixin({
+  &#39;capitalize&#39;: function(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+  }
+});
+
+_.capitalize(&#39;larry&#39;);
+// =&gt; &#39;Larry&#39;
+
+_(&#39;curly&#39;).capitalize();
+// =&gt; &#39;Curly&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_noconflict"></a><code>_.noConflict()</code></h3>
+<p><a href="#_noconflict">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3641" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Reverts the &#39;_&#39; variable to its previous value and returns a reference to the <code>lodash</code> function.</p>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the <code>lodash</code> function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var lodash = _.noConflict();</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_randommin0-max1"></a><code>_.random([min=0, max=1])</code></h3>
+<p><a href="#_randommin0-max1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3664" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Produces a random number between <code>min</code> and <code>max</code> <em>(inclusive)</em>. If only one argument is passed, a number between <code>0</code> and the given number will be returned.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[min=0]</code> <em>(Number)</em>: The minimum possible value.</li>
+<li><code>[max=1]</code> <em>(Number)</em>: The maximum possible value.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns a random number.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.random(0, 5);
+// =&gt; a number between 1 and 5
+
+_.random(5);
+// =&gt; also a number between 1 and 5</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_resultobject-property"></a><code>_.result(object, property)</code></h3>
+<p><a href="#_resultobject-property">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3703" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Resolves the value of <code>property</code> on <code>object</code>. If <code>property</code> is a function it will be invoked and its result returned, else the property value is returned. If <code>object</code> is falsey, then <code>null</code> is returned.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+<li><code>property</code> <em>(String)</em>: The property to get the value of.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the resolved value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var object = {
+  &#39;cheese&#39;: &#39;crumpets&#39;,
+  &#39;stuff&#39;: function() {
+    return &#39;nonsense&#39;;
+  }
+};
+
+_.result(object, &#39;cheese&#39;);
+// =&gt; &#39;crumpets&#39;
+
+_.result(object, &#39;stuff&#39;);
+// =&gt; &#39;nonsense&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatetext-data-options"></a><code>_.template(text, data, options)</code></h3>
+<p><a href="#_templatetext-data-options">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3788" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>A micro-templating method that handles arbitrary delimiters, preserves whitespace, and correctly escapes quotes within interpolated code.  Note: In the development build <code>_.template</code> utilizes sourceURLs for easier debugging. See <a href="http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl">http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl</a>  Note: Lo-Dash may be used in Chrome extensions by either creating a <code>lodash csp</code> build and avoiding <code>_.template</code> use, or loading Lo-Dash in a sandboxed page. See <a href="http://developer.chrome.com/trunk/extensions/sandboxingEval.html">http://developer.chrome.com/trunk/extensions/sandboxingEval.html</a></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>text</code> <em>(String)</em>: The template text.</li>
+<li><code>data</code> <em>(Obect)</em>: The data object used to populate the text.</li>
+<li><code>options</code> <em>(Object)</em>: The options object. escape - The &quot;escape&quot; delimiter regexp. evaluate - The &quot;evaluate&quot; delimiter regexp. interpolate - The &quot;interpolate&quot; delimiter regexp. sourceURL - The sourceURL of the template&#39;s compiled source. variable - The data object variable name.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function, String)</em>: Returns a compiled function when no <code>data</code> object  is given, else it returns the interpolated text.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">// using a compiled template
+var compiled = _.template(&#39;hello &lt;%= name %&gt;&#39;);
+compiled({ &#39;name&#39;: &#39;moe&#39; });
+// =&gt; &#39;hello moe&#39;
+
+var list = &#39;&lt;% _.forEach(people, function(name) { %&gt;&lt;li&gt;&lt;%= name %&gt;&lt;/li&gt;&lt;% }); %&gt;&#39;;
+_.template(list, { &#39;people&#39;: [&#39;moe&#39;, &#39;larry&#39;, &#39;curly&#39;] });
+// =&gt; &#39;&lt;li&gt;moe&lt;/li&gt;&lt;li&gt;larry&lt;/li&gt;&lt;li&gt;curly&lt;/li&gt;&#39;
+
+// using the &quot;escape&quot; delimiter to escape HTML in data property values
+_.template(&#39;&lt;b&gt;&lt;%- value %&gt;&lt;/b&gt;&#39;, { &#39;value&#39;: &#39;&lt;script&gt;&#39; });
+// =&gt; &#39;&lt;b&gt;&amp;lt;script&amp;gt;&lt;/b&gt;&#39;
+
+// using the ES6 delimiter as an alternative to the default &quot;interpolate&quot; delimiter
+_.template(&#39;hello ${ name }&#39;, { &#39;name&#39;: &#39;curly&#39; });
+// =&gt; &#39;hello curly&#39;
+
+// using the internal `print` function in &quot;evaluate&quot; delimiters
+_.template(&#39;&lt;% print(&quot;hello &quot; + epithet); %&gt;!&#39;, { &#39;epithet&#39;: &#39;stooge&#39; });
+// =&gt; &#39;hello stooge!&#39;
+
+// using custom template delimiters
+_.templateSettings = {
+  &#39;interpolate&#39;: /{{([\s\S]+?)}}/g
+};
+
+_.template(&#39;hello {{ name }}!&#39;, { &#39;name&#39;: &#39;mustache&#39; });
+// =&gt; &#39;hello mustache!&#39;
+
+// using the `sourceURL` option to specify a custom sourceURL for the template
+var compiled = _.template(&#39;hello &lt;%= name %&gt;&#39;, null, { &#39;sourceURL&#39;: &#39;/basic/greeting.jst&#39; });
+compiled(data);
+// =&gt; find the source of &quot;greeting.jst&quot; under the Sources tab or Resources panel of the web inspector
+
+// using the `variable` option to ensure a with-statement isn&#39;t used in the compiled template
+var compiled = _.template(&#39;hello &lt;%= data.name %&gt;!&#39;, null, { &#39;variable&#39;: &#39;data&#39; });
+compiled.source;
+// =&gt; function(data) {
+  var __t, __p = &#39;&#39;, __e = _.escape;
+  __p += &#39;hello &#39; + ((__t = ( data.name )) == null ? &#39;&#39; : __t) + &#39;!&#39;;
+  return __p;
+}
+
+// using the `source` property to inline compiled templates for meaningful
+// line numbers in error messages and a stack trace
+fs.writeFileSync(path.join(cwd, &#39;jst.js&#39;), &#39;\
+  var JST = {\
+    &quot;main&quot;: &#39; + _.template(mainText).source + &#39;\
+  };\
+&#39;);</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_timesn-callback--thisarg"></a><code>_.times(n, callback [, thisArg])</code></h3>
+<p><a href="#_timesn-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3911" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Executes the <code>callback</code> function <code>n</code> times, returning an array of the results of each <code>callback</code> execution. The <code>callback</code> is bound to <code>thisArg</code> and invoked with one argument; <em>(index)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>n</code> <em>(Number)</em>: The number of times to execute the callback.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of the results of each <code>callback</code> execution.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var diceRolls = _.times(3, _.partial(_.random, 1, 6));
+// =&gt; [3, 6, 4]
+
+_.times(3, function(n) { mage.castSpell(n); });
+// =&gt; calls `mage.castSpell(n)` three times, passing `n` of `0`, `1`, and `2` respectively
+
+_.times(3, function(n) { this.cast(n); }, mage);
+// =&gt; also calls `mage.castSpell(n)` three times</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_unescapestring"></a><code>_.unescape(string)</code></h3>
+<p><a href="#_unescapestring">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3937" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The opposite of <code>_.escape</code>, this method converts the HTML entities <code>&amp;amp;</code>, <code>&amp;lt;</code>, <code>&amp;gt;</code>, <code>&amp;quot;</code>, and <code>&amp;#x27;</code> in <code>string</code> to their corresponding characters.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>string</code> <em>(String)</em>: The string to unescape.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(String)</em>: Returns the unescaped string.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.unescape(&#39;Moe, Larry &amp;amp; Curly&#39;);
+// =&gt; &quot;Moe, Larry &amp; Curly&quot;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_uniqueidprefix"></a><code>_.uniqueId([prefix])</code></h3>
+<p><a href="#_uniqueidprefix">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L3955" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Generates a unique id. If <code>prefix</code> is passed, the id will be appended to it.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[prefix]</code> <em>(String)</em>: The value to prefix the id with.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number, String)</em>: Returns a numeric id if no prefix is passed, else  a string id may be returned.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.uniqueId(&#39;contact_&#39;);
+// =&gt; &#39;contact_104&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>Properties</code></h2>
+<!-- div -->
+
+<h3><a id="_version"></a><code>_.VERSION</code></h3>
+<p><a href="#_version">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4060" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(String)</em>: The semantic version number.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettings"></a><code>_.templateSettings</code></h3>
+<p><a href="#_templatesettings">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L263" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(Object)</em>: By default, the template delimiters used by Lo-Dash are similar to those in embedded Ruby <em>(ERB)</em>. Change the following template settings to use alternative delimiters.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsescape"></a><code>_.templateSettings.escape</code></h3>
+<p><a href="#_templatesettingsescape">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L272" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect <code>data</code> property values to be HTML-escaped.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsevaluate"></a><code>_.templateSettings.evaluate</code></h3>
+<p><a href="#_templatesettingsevaluate">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L281" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect code to be evaluated.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsinterpolate"></a><code>_.templateSettings.interpolate</code></h3>
+<p><a href="#_templatesettingsinterpolate">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L290" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect <code>data</code> property values to inject.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsvariable"></a><code>_.templateSettings.variable</code></h3>
+<p><a href="#_templatesettingsvariable">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L299" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(String)</em>: Used to reference the data object in the template text.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+</code> is <code>NaN</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNaN(NaN);
+// =&gt; true
+
+_.isNaN(new Number(NaN));
+// =&gt; true
+
+isNaN(undefined);
+// =&gt; true
+
+_.isNaN(undefined);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isnullvalue"></a><code>_.isNull(value)</code></h3>
+<p><a href="#_isnullvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1752" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is <code>null</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is <code>null</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNull(null);
+// =&gt; true
+
+_.isNull(undefined);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isnumbervalue"></a><code>_.isNumber(value)</code></h3>
+<p><a href="#_isnumbervalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1769" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a number.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is a number, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isNumber(8.4 * 5);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isobjectvalue"></a><code>_.isObject(value)</code></h3>
+<p><a href="#_isobjectvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1697" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is the language type of Object. <em>(e.g. arrays, functions, objects, regexes, <code>new Number(0)</code>, and <code>new String(&#39;&#39;)</code>)</em></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is an object, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isObject({});
+// =&gt; true
+
+_.isObject([1, 2, 3]);
+// =&gt; true
+
+_.isObject(1);
+// =&gt; false</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isplainobjectvalue"></a><code>_.isPlainObject(value)</code></h3>
+<p><a href="#_isplainobjectvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1797" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if a given <code>value</code> is an object created by the <code>Object</code> constructor.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if <code>value</code> is a plain object, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">function Stooge(name, age) {
+  this.name = name;
+  this.age = age;
+}
+
+_.isPlainObject(new Stooge(&#39;moe&#39;, 40));
+// =&gt; false
+
+_.isPlainObject([1, 2, 3]);
+// =&gt; false
+
+_.isPlainObject({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 });
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isregexpvalue"></a><code>_.isRegExp(value)</code></h3>
+<p><a href="#_isregexpvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1822" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a regular expression.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is a regular expression, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isRegExp(/moe/);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isstringvalue"></a><code>_.isString(value)</code></h3>
+<p><a href="#_isstringvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1839" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is a string.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is a string, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isString(&#39;moe&#39;);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_isundefinedvalue"></a><code>_.isUndefined(value)</code></h3>
+<p><a href="#_isundefinedvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1856" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Checks if <code>value</code> is <code>undefined</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: The value to check.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Boolean)</em>: Returns <code>true</code>, if the <code>value</code> is <code>undefined</code>, else <code>false</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.isUndefined(void 0);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_keysobject"></a><code>_.keys(object)</code></h3>
+<p><a href="#_keysobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L944" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array composed of the own enumerable property names of <code>object</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property names.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.keys({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 });
+// =&gt; [&#39;one&#39;, &#39;two&#39;, &#39;three&#39;] (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mergeobject--source1-source2--callback-thisarg"></a><code>_.merge(object [, source1, source2, ..., callback, thisArg])</code></h3>
+<p><a href="#_mergeobject--source1-source2--callback-thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L1916" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Recursively merges own enumerable properties of the source object(s), that don&#39;t resolve to <code>undefined</code>, into the destination object. Subsequent sources will overwrite propery assignments of previous sources. If a <code>callback</code> function is passed, it will be executed to produce the merged values of the destination and source properties. If <code>callback</code> returns <code>undefined</code>, merging will be handled by the method instead. The <code>callback</code> is bound to <code>thisArg</code> and invoked with two arguments; <em>(objectValue, sourceValue)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The destination object.</li>
+<li><code>[source1, source2, ...]</code> <em>(Object)</em>: The source objects.</li>
+<li><code>[callback]</code> <em>(Function)</em>: The function to customize merging properties.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns the destination object.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var names = {
+  &#39;stooges&#39;: [
+    { &#39;name&#39;: &#39;moe&#39; },
+    { &#39;name&#39;: &#39;larry&#39; }
+  ]
+};
+
+var ages = {
+  &#39;stooges&#39;: [
+    { &#39;age&#39;: 40 },
+    { &#39;age&#39;: 50 }
+  ]
+};
+
+_.merge(names, ages);
+// =&gt; { &#39;stooges&#39;: [{ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }, { &#39;name&#39;: &#39;larry&#39;, &#39;age&#39;: 50 }] }
+
+var food = {
+  &#39;fruits&#39;: [&#39;apple&#39;],
+  &#39;vegetables&#39;: [&#39;beet&#39;]
+};
+
+var otherFood = {
+  &#39;fruits&#39;: [&#39;banana&#39;],
+  &#39;vegetables&#39;: [&#39;carrot&#39;]
+};
+
+_.merge(food, otherFood, function(a, b) {
+  return _.isArray(a) ? a.concat(b) : undefined;
+});
+// =&gt; { &#39;fruits&#39;: [&#39;apple&#39;, &#39;banana&#39;], &#39;vegetables&#39;: [&#39;beet&#39;, &#39;carrot] }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_omitobject-callback-prop1-prop2--thisarg"></a><code>_.omit(object, callback|[prop1, prop2, ..., thisArg])</code></h3>
+<p><a href="#_omitobject-callback-prop1-prop2--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2023" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a shallow clone of <code>object</code> excluding the specified properties. Property names may be specified as individual arguments or as arrays of property names. If a <code>callback</code> function is passed, it will be executed for each property in the <code>object</code>, omitting the properties <code>callback</code> returns truthy for. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The source object.</li>
+<li><code>callback|[prop1, prop2, ...]</code> <em>(Function|String)</em>: The properties to omit or the function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns an object without the omitted properties.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.omit({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }, &#39;age&#39;);
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }
+
+_.omit({ &#39;name&#39;: &#39;moe&#39;, &#39;age&#39;: 40 }, function(value) {
+  return typeof value == &#39;number&#39;;
+});
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_pairsobject"></a><code>_.pairs(object)</code></h3>
+<p><a href="#_pairsobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2057" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a two dimensional array of the given object&#39;s key-value pairs, i.e. <code>[[key1, value1], [key2, value2]]</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns new array of key-value pairs.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.pairs({ &#39;moe&#39;: 30, &#39;larry&#39;: 40 });
+// =&gt; [[&#39;moe&#39;, 30], [&#39;larry&#39;, 40]] (order is not guaranteed)</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_pickobject-callback-prop1-prop2--thisarg"></a><code>_.pick(object, callback|[prop1, prop2, ..., thisArg])</code></h3>
+<p><a href="#_pickobject-callback-prop1-prop2--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2095" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates a shallow clone of <code>object</code> composed of the specified properties. Property names may be specified as individual arguments or as arrays of property names. If <code>callback</code> is passed, it will be executed for each property in the <code>object</code>, picking the properties <code>callback</code> returns truthy for. The <code>callback</code> is bound to <code>thisArg</code> and invoked with three arguments; <em>(value, key, object)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The source object.</li>
+<li><code>callback|[prop1, prop2, ...]</code> <em>(Array|Function|String)</em>: The function called per iteration or properties to pick, either as individual arguments or arrays.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Object)</em>: Returns an object composed of the picked properties.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.pick({ &#39;name&#39;: &#39;moe&#39;, &#39;_userid&#39;: &#39;moe1&#39; }, &#39;name&#39;);
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }
+
+_.pick({ &#39;name&#39;: &#39;moe&#39;, &#39;_userid&#39;: &#39;moe1&#39; }, function(value, key) {
+  return key.charAt(0) != &#39;_&#39;;
+});
+// =&gt; { &#39;name&#39;: &#39;moe&#39; }</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_valuesobject"></a><code>_.values(object)</code></h3>
+<p><a href="#_valuesobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L2132" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Creates an array composed of the own enumerable property values of <code>object</code>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of property values.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.values({ &#39;one&#39;: 1, &#39;two&#39;: 2, &#39;three&#39;: 3 });
+// =&gt; [1, 2, 3]</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>“Utilities” Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_escapestring"></a><code>_.escape(string)</code></h3>
+<p><a href="#_escapestring">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4457" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Converts the characters <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&quot;</code>, and <code>&#39;</code> in <code>string</code> to their corresponding HTML entities.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>string</code> <em>(String)</em>: The string to escape.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(String)</em>: Returns the escaped string.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.escape(&#39;Moe, Larry &amp; Curly&#39;);
+// =&gt; &#39;Moe, Larry &amp;amp; Curly&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_identityvalue"></a><code>_.identity(value)</code></h3>
+<p><a href="#_identityvalue">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4475" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>This function returns the first argument passed to it.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>value</code> <em>(Mixed)</em>: Any value.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns <code>value</code>.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var moe = { &#39;name&#39;: &#39;moe&#39; };
+moe === _.identity(moe);
+// =&gt; true</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_mixinobject"></a><code>_.mixin(object)</code></h3>
+<p><a href="#_mixinobject">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4501" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Adds functions properties of <code>object</code> to the <code>lodash</code> function and chainable wrapper.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object of function properties to add to <code>lodash</code>.</li>
+</ol>
+<h4>Example</h4>
+<pre><code class="lang-js">_.mixin({
+  &#39;capitalize&#39;: function(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+  }
+});
+
+_.capitalize(&#39;moe&#39;);
+// =&gt; &#39;Moe&#39;
+
+_(&#39;moe&#39;).capitalize();
+// =&gt; &#39;Moe&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_noconflict"></a><code>_.noConflict()</code></h3>
+<p><a href="#_noconflict">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4525" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Reverts the &#39;_&#39; variable to its previous value and returns a reference to the <code>lodash</code> function.</p>
+<h4>Returns</h4>
+<p><em>(Function)</em>: Returns the <code>lodash</code> function.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var lodash = _.noConflict();</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_randommin0-max1"></a><code>_.random([min=0, max=1])</code></h3>
+<p><a href="#_randommin0-max1">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4548" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Produces a random number between <code>min</code> and <code>max</code> <em>(inclusive)</em>. If only one argument is passed, a number between <code>0</code> and the given number will be returned.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[min=0]</code> <em>(Number)</em>: The minimum possible value.</li>
+<li><code>[max=1]</code> <em>(Number)</em>: The maximum possible value.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Number)</em>: Returns a random number.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.random(0, 5);
+// =&gt; a number between 0 and 5
+
+_.random(5);
+// =&gt; also a number between 0 and 5</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_resultobject-property"></a><code>_.result(object, property)</code></h3>
+<p><a href="#_resultobject-property">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4586" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Resolves the value of <code>property</code> on <code>object</code>. If <code>property</code> is a function, it will be invoked and its result returned, else the property value is returned. If <code>object</code> is falsey, then <code>null</code> is returned.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>object</code> <em>(Object)</em>: The object to inspect.</li>
+<li><code>property</code> <em>(String)</em>: The property to get the value of.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Mixed)</em>: Returns the resolved value.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var object = {
+  &#39;cheese&#39;: &#39;crumpets&#39;,
+  &#39;stuff&#39;: function() {
+    return &#39;nonsense&#39;;
+  }
+};
+
+_.result(object, &#39;cheese&#39;);
+// =&gt; &#39;crumpets&#39;
+
+_.result(object, &#39;stuff&#39;);
+// =&gt; &#39;nonsense&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatetext-data-options"></a><code>_.template(text, data, options)</code></h3>
+<p><a href="#_templatetext-data-options">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4674" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>A micro-templating method that handles arbitrary delimiters, preserves whitespace, and correctly escapes quotes within interpolated code.</p>
+<p>Note: In the development build, <code>_.template</code> utilizes sourceURLs for easier debugging. See <a href="http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl">http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl</a></p>
+<p>Note: Lo-Dash may be used in Chrome extensions by either creating a <code>lodash csp</code> build and using precompiled templates, or loading Lo-Dash in a sandbox.</p>
+<p>For more information on precompiling templates see:<br>
+<a href="http://lodash.com/#custom-builds">http://lodash.com/#custom-builds</a></p>
+<p>For more information on Chrome extension sandboxes see:<br>
+<a href="http://developer.chrome.com/stable/extensions/sandboxingEval.html">http://developer.chrome.com/stable/extensions/sandboxingEval.html</a></p>
+<h4>Arguments</h4>
+<ol>
+<li><code>text</code> <em>(String)</em>: The template text.</li>
+<li><code>data</code> <em>(Obect)</em>: The data object used to populate the text.</li>
+<li><code>options</code> <em>(Object)</em>: The options object. escape - The &quot;escape&quot; delimiter regexp. evaluate - The &quot;evaluate&quot; delimiter regexp. interpolate - The &quot;interpolate&quot; delimiter regexp. sourceURL - The sourceURL of the template&#39;s compiled source. variable - The data object variable name.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Function, String)</em>: Returns a compiled function when no <code>data</code> object  is given, else it returns the interpolated text.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">// using a compiled template
+var compiled = _.template(&#39;hello &lt;%= name %&gt;&#39;);
+compiled({ &#39;name&#39;: &#39;moe&#39; });
+// =&gt; &#39;hello moe&#39;
+
+var list = &#39;&lt;% _.forEach(people, function(name) { %&gt;&lt;li&gt;&lt;%= name %&gt;&lt;/li&gt;&lt;% }); %&gt;&#39;;
+_.template(list, { &#39;people&#39;: [&#39;moe&#39;, &#39;larry&#39;] });
+// =&gt; &#39;&lt;li&gt;moe&lt;/li&gt;&lt;li&gt;larry&lt;/li&gt;&#39;
+
+// using the &quot;escape&quot; delimiter to escape HTML in data property values
+_.template(&#39;&lt;b&gt;&lt;%- value %&gt;&lt;/b&gt;&#39;, { &#39;value&#39;: &#39;&lt;script&gt;&#39; });
+// =&gt; &#39;&lt;b&gt;&amp;lt;script&amp;gt;&lt;/b&gt;&#39;
+
+// using the ES6 delimiter as an alternative to the default &quot;interpolate&quot; delimiter
+_.template(&#39;hello ${ name }&#39;, { &#39;name&#39;: &#39;curly&#39; });
+// =&gt; &#39;hello curly&#39;
+
+// using the internal `print` function in &quot;evaluate&quot; delimiters
+_.template(&#39;&lt;% print(&quot;hello &quot; + epithet); %&gt;!&#39;, { &#39;epithet&#39;: &#39;stooge&#39; });
+// =&gt; &#39;hello stooge!&#39;
+
+// using custom template delimiters
+_.templateSettings = {
+  &#39;interpolate&#39;: /{{([\s\S]+?)}}/g
+};
+
+_.template(&#39;hello {{ name }}!&#39;, { &#39;name&#39;: &#39;mustache&#39; });
+// =&gt; &#39;hello mustache!&#39;
+
+// using the `sourceURL` option to specify a custom sourceURL for the template
+var compiled = _.template(&#39;hello &lt;%= name %&gt;&#39;, null, { &#39;sourceURL&#39;: &#39;/basic/greeting.jst&#39; });
+compiled(data);
+// =&gt; find the source of &quot;greeting.jst&quot; under the Sources tab or Resources panel of the web inspector
+
+// using the `variable` option to ensure a with-statement isn&#39;t used in the compiled template
+var compiled = _.template(&#39;hi &lt;%= data.name %&gt;!&#39;, null, { &#39;variable&#39;: &#39;data&#39; });
+compiled.source;
+// =&gt; function(data) {
+  var __t, __p = &#39;&#39;, __e = _.escape;
+  __p += &#39;hi &#39; + ((__t = ( data.name )) == null ? &#39;&#39; : __t) + &#39;!&#39;;
+  return __p;
+}
+
+// using the `source` property to inline compiled templates for meaningful
+// line numbers in error messages and a stack trace
+fs.writeFileSync(path.join(cwd, &#39;jst.js&#39;), &#39;\
+  var JST = {\
+    &quot;main&quot;: &#39; + _.template(mainText).source + &#39;\
+  };\
+&#39;);</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_timesn-callback--thisarg"></a><code>_.times(n, callback [, thisArg])</code></h3>
+<p><a href="#_timesn-callback--thisarg">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4800" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Executes the <code>callback</code> function <code>n</code> times, returning an array of the results of each <code>callback</code> execution. The <code>callback</code> is bound to <code>thisArg</code> and invoked with one argument; <em>(index)</em>.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>n</code> <em>(Number)</em>: The number of times to execute the callback.</li>
+<li><code>callback</code> <em>(Function)</em>: The function called per iteration.</li>
+<li><code>[thisArg]</code> <em>(Mixed)</em>: The <code>this</code> binding of <code>callback</code>.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(Array)</em>: Returns a new array of the results of each <code>callback</code> execution.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">var diceRolls = _.times(3, _.partial(_.random, 1, 6));
+// =&gt; [3, 6, 4]
+
+_.times(3, function(n) { mage.castSpell(n); });
+// =&gt; calls `mage.castSpell(n)` three times, passing `n` of `0`, `1`, and `2` respectively
+
+_.times(3, function(n) { this.cast(n); }, mage);
+// =&gt; also calls `mage.castSpell(n)` three times</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_unescapestring"></a><code>_.unescape(string)</code></h3>
+<p><a href="#_unescapestring">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4826" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>The opposite of <code>_.escape</code>, this method converts the HTML entities <code>&amp;amp;</code>, <code>&amp;lt;</code>, <code>&amp;gt;</code>, <code>&amp;quot;</code>, and <code>&amp;#39;</code> in <code>string</code> to their corresponding characters.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>string</code> <em>(String)</em>: The string to unescape.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(String)</em>: Returns the unescaped string.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.unescape(&#39;Moe, Larry &amp;amp; Curly&#39;);
+// =&gt; &#39;Moe, Larry &amp; Curly&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_uniqueidprefix"></a><code>_.uniqueId([prefix])</code></h3>
+<p><a href="#_uniqueidprefix">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L4846" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>Generates a unique ID. If <code>prefix</code> is passed, the ID will be appended to it.</p>
+<h4>Arguments</h4>
+<ol>
+<li><code>[prefix]</code> <em>(String)</em>: The value to prefix the ID with.</li>
+</ol>
+<h4>Returns</h4>
+<p><em>(String)</em>: Returns the unique ID.</p>
+<h4>Example</h4>
+<pre><code class="lang-js">_.uniqueId(&#39;contact_&#39;);
+// =&gt; &#39;contact_104&#39;
+
+_.uniqueId();
+// =&gt; &#39;105&#39;</code></pre>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>Methods</code></h2>
+<!-- div -->
+
+<h3><a id="_templatesettingsimports_"></a><code>_.templateSettings.imports._</code></h3>
+<p><a href="#_templatesettingsimports_">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L341" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p>A reference to the <code>lodash</code> function.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- div -->
+
+<h2><code>Properties</code></h2>
+<!-- div -->
+
+<h3><a id="_version"></a><code>_.VERSION</code></h3>
+<p><a href="#_version">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L5076" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(String)</em>: The semantic version number.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettings"></a><code>_.templateSettings</code></h3>
+<p><a href="#_templatesettings">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L293" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(Object)</em>: By default, the template delimiters used by Lo-Dash are similar to those in embedded Ruby <em>(ERB)</em>. Change the following template settings to use alternative delimiters.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsescape"></a><code>_.templateSettings.escape</code></h3>
+<p><a href="#_templatesettingsescape">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L301" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect <code>data</code> property values to be HTML-escaped.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsevaluate"></a><code>_.templateSettings.evaluate</code></h3>
+<p><a href="#_templatesettingsevaluate">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L309" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect code to be evaluated.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsinterpolate"></a><code>_.templateSettings.interpolate</code></h3>
+<p><a href="#_templatesettingsinterpolate">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L317" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(RegExp)</em>: Used to detect <code>data</code> property values to inject.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsvariable"></a><code>_.templateSettings.variable</code></h3>
+<p><a href="#_templatesettingsvariable">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L325" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(String)</em>: Used to reference the data object in the template text.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- div -->
+
+<h3><a id="_templatesettingsimports"></a><code>_.templateSettings.imports</code></h3>
+<p><a href="#_templatesettingsimports">#</a> <a href="https://github.com/bestiejs/lodash/blob/master/lodash.js#L333" title="View in source">&#x24C8;</a> <a href="#Arrays" title="Jump back to the TOC.">&#x24C9;</a></p>
+<p><em>(Object)</em>: Used to import variables into the compiled template.</p>
+<hr>
+<!-- /div -->
+
+
+<!-- /div -->
+
+
+<!-- /div -->
+
+

@@ -1,0 +1,107 @@
+<h1>Settings</h1>
+<p>There are a number of options available. Please review the <a href="https://github.com/isaacs/minimatch#options">minimatch options here</a>. As well as some additional options as follows:</p>
+<h2>files</h2>
+<p>Type: <code>String|Array</code></p>
+<p>This defines what file patterns this task will watch. Can be a string or an array of files and/or minimatch patterns.</p>
+<h2>tasks</h2>
+<p>Type: <code>String|Array</code></p>
+<p>This defines which tasks to run when a watched file event occurs.</p>
+<h2>options.spawn</h2>
+<p>Type: <code>Boolean</code>
+Default: true</p>
+<p>Whether to spawn task runs in a child process. Setting this option to <code>false</code> speeds up the reaction time of the watch (usually 500ms faster for most) and allows subsequent task runs to share the same context. Not spawning task runs can make the watch more prone to failing so please use as needed.</p>
+<p>Example:</p>
+<pre><code class="lang-js">watch: {
+  scripts: {
+    files: [&#39;**/*.js&#39;],
+    tasks: [&#39;jshint&#39;],
+    options: {
+      spawn: false,
+    },
+  },
+},</code></pre>
+<p><em>For backwards compatibility the option <code>nospawn</code> is still available and will do the opposite of <code>spawn</code>.</em></p>
+<h2>options.interrupt</h2>
+<p>Type: <code>Boolean</code>
+Default: false</p>
+<p>As files are modified this watch task will spawn tasks in child processes. The default behavior will only spawn a new child process per target when the previous process has finished. Set the <code>interrupt</code> option to true to terminate the previous process and spawn a new one upon later changes.</p>
+<p>Example:</p>
+<pre><code class="lang-js">watch: {
+  scripts: {
+    files: &#39;**/*.js&#39;,
+    tasks: [&#39;jshint&#39;],
+    options: {
+      interrupt: true,
+    },
+  },
+},</code></pre>
+<h2>options.debounceDelay</h2>
+<p>Type: <code>Integer</code>
+Default: 500</p>
+<p>How long to wait before emitting events in succession for the same filepath and status. For example if your <code>Gruntfile.js</code> file was <code>changed</code>, a <code>changed</code> event will only fire again after the given milliseconds.</p>
+<p>Example:</p>
+<pre><code class="lang-js">watch: {
+  scripts: {
+    files: &#39;**/*.js&#39;,
+    tasks: [&#39;jshint&#39;],
+    options: {
+      debounceDelay: 250,
+    },
+  },
+},</code></pre>
+<h2>options.interval</h2>
+<p>Type: <code>Integer</code>
+Default: 100</p>
+<p>The <code>interval</code> is passed to <code>fs.watchFile</code>. Since <code>interval</code> is only used by <code>fs.watchFile</code> and this watcher also uses <code>fs.watch</code>; it is recommended to ignore this option. <em>Default is 100ms</em>.</p>
+<h2>options.event</h2>
+<p>Type: <code>String|Array</code>
+Default: <code>&#39;all&#39;</code></p>
+<p>Specify the type watch event that trigger the specified task. This option can be one or many of: <code>&#39;all&#39;</code>, <code>&#39;changed&#39;</code>, <code>&#39;added&#39;</code> and <code>&#39;deleted&#39;</code>.</p>
+<p>Example:</p>
+<pre><code class="lang-js">watch: {
+  scripts: {
+    files: &#39;**/*.js&#39;,
+    tasks: [&#39;generateFileManifest&#39;],
+    options: {
+      event: [&#39;added&#39;, &#39;deleted&#39;],
+    },
+  },
+},</code></pre>
+<h2>options.forever</h2>
+<p>Type: <code>Boolean</code>
+Default: true</p>
+<p>This is <em>only a task level option</em> and cannot be configured per target. By default the watch task will duck punch <code>grunt.fatal</code> and <code>grunt.warn</code> to try and prevent them from exiting the watch process. If you don&#39;t want <code>grunt.fatal</code> and <code>grunt.warn</code> to be overridden set the <code>forever</code> option to <code>false</code>.</p>
+<h2>options.dateFormat</h2>
+<p>Type: <code>Function</code></p>
+<p>This is <em>only a task level option</em> and cannot be configured per target. By default when the watch has finished running tasks it will display the message <code>Completed in 1.301s at Thu Jul 18 2013 14:58:21 GMT-0700 (PDT) - Waiting...</code>. You can override this message by supplying your own function:</p>
+<pre><code class="lang-js">watch: {
+  options: {
+    dateFormat: function(time) {
+      grunt.log.writeln(&#39;The watch finished in &#39; + time + &#39;ms at&#39; + (new Date()).toString());
+      grunt.log.writeln(&#39;Waiting for more changes...&#39;);
+    },
+  },
+  scripts: {
+    files: &#39;**/*.js&#39;,
+    tasks: &#39;jshint&#39;,
+  },
+},</code></pre>
+<h2>options.atBegin</h2>
+<p>Type: <code>Boolean</code>
+Default: false</p>
+<p>This option will trigger the run of each specified task at startup of the watcher.</p>
+<h2>options.livereload</h2>
+<p>Type: <code>Boolean|Number|Object</code>
+Default: false</p>
+<p>Set to <code>true</code> or set <code>livereload: 1337</code> to a port number to enable live reloading. Default and recommended port is <code>35729</code>.</p>
+<p>If enabled a live reload server will be started with the watch task per target. Then after the indicated tasks have ran, the live reload server will be triggered with the modified files.</p>
+<p>Example:</p>
+<pre><code class="lang-js">watch: {
+  css: {
+    files: &#39;**/*.sass&#39;,
+    tasks: [&#39;sass&#39;],
+    options: {
+      livereload: true,
+    },
+  },
+},</code></pre>
