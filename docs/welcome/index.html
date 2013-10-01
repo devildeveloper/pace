@@ -44,6 +44,7 @@
                 font-family: "proxima-nova", "Helvetica Neue", sans-serif;
             }
 
+            @media (min-width: 1700px) { html { font-size: 188%; } }
             @media (max-width: 1700px) { html { font-size: 188%; } }
             @media (max-width: 1680px) { html { font-size: 186%; } }
             @media (max-width: 1660px) { html { font-size: 184%; } }
@@ -415,7 +416,7 @@
                 <p style="text-align: left">No need to hook into any of your code, progress is detected automatically.</p>
                 <br/>
                 <h2>Download</h2>
-                <p><a class="button" href="https://raw.github.com/HubSpot/pace/v0.4.3/pace.min.js">Pace.js</a></p>
+                <p><a class="button" href="https://raw.github.com/HubSpot/pace/v0.4.12/pace.min.js">Pace.js</a></p>
                 <br/>
                 <h2>Themes</h2>
                 <label class="color-label" for="color-select">Enter a color:</label>
@@ -434,40 +435,31 @@
 
                         var themes = [{
                             name: 'minimal',
-                            title: 'Minimal',
-                            description: 'The smallest file size and simplest'
+                            title: 'Minimal'
                         }, {
                             name: 'flash',
-                            title: 'Flash',
-                            description: 'Inspired by Google Chrome on iOS'
+                            title: 'Flash'
                         }, {
                             name: 'barber-shop',
-                            title: 'Barber Shop',
-                            description: 'Inspired by Lea Verou'
+                            title: 'Barber Shop'
                         }, {
                             name: 'mac-osx',
-                            title: 'Mac OSX',
-                            description: 'Inspired by the native OSX progress styles'
+                            title: 'Mac OSX'
                         }, {
                             name: 'fill-left',
-                            title: 'Fill Left',
-                            description: 'Inspired by <a href="http://tympanus.net/Development/CreativeLoadingEffects/" rel="nofollow" target="_blank">Codedrops</a>'
+                            title: 'Fill Left'
                         }, {
                             name: 'flat-top',
-                            title: 'Flat Top',
-                            description: 'Inspired by <a href="http://tympanus.net/Development/CreativeLoadingEffects/" rel="nofollow" target="_blank">Codedrops</a>'
+                            title: 'Flat Top'
                         }, {
                             name: 'big-counter',
-                            title: 'Big Counter',
-                            description: 'Inspired by <a href="http://tympanus.net/Development/CreativeLoadingEffects/" rel="nofollow" target="_blank">Codedrops</a>'
+                            title: 'Big Counter'
                         }, {
                             name: 'corner-indicator',
-                            title: 'Corner Indicator',
-                            description: 'Inspired by <a href="http://tympanus.net/Development/CreativeLoadingEffects/" rel="nofollow" target="_blank">Codedrops</a>'
+                            title: 'Corner Indicator'
                         }, {
                             name: 'bounce',
-                            title: 'Bounce',
-                            description: 'Inspired by <a href="http://tympanus.net/Tutorials/CSS3BouncingBall/" rel="nofollow" target="_blank">Codedrops</a>'
+                            title: 'Bounce'
                         }];
 
                         var init = function() {
@@ -506,7 +498,7 @@
                             };
 
                             var updateColor = function(color){
-                                $('iframe').each(function(){
+                                $('.browser iframe').each(function(){
                                     initFrame(this, color);
                                 });
                             };
@@ -515,17 +507,20 @@
                                 location.href = 'data:text/css,' + encodeURIComponent(cssCache[theme]);
                             };
 
-                            $('iframe').each(function(){
+                            $('.browser iframe').each(function(){
                                 var _this = this;
 
-                                $(this).contents().find('body').append('' +
+                                doc = (this.contentWindow || this.documentWindow).document;
+                                doc.open();
+                                doc.write('' +
                                     '<div class="pace">' +
                                         '<div class="pace-progress" data-progress="50%" style="width: 50%;">' +
                                             '<div class="pace-progress-inner"></div>' +
                                         '</div>' +
                                         '<div class="pace-activity"></div>' +
                                     '</div>' +
-                                '')
+                                '');
+                                doc.close();
 
                                 // For some strange reason, the Color library we depend on defines itself
                                 // asyncronously
@@ -612,22 +607,21 @@
         </style>
         <div id="retweet_button">
             <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://github.hubspot.com/pace/docs/welcome" data-text="pace.js - Add an automatic page load progress bar to your site" data-count="horizontal" data-via="HubSpotDev">Tweet</a>
+            <script>
+              if (Math.random() >= 0.5)
+                var recommends = ['hubspotdev', 'zackbloom', 'adamfschwartz'];
+              else
+                var recommends = ['hubspotdev', 'adamfschwartz', 'zackbloom'];
+
+              var $button = $('.twitter-share-button');
+              if ($button.length)
+                $button.data('related', recommends.join(','));
+            </script>
             <script type="text/javascript" src="http://platform.twitter.com/widgets.js"></script>
         </div>
         <div id="github_stars">
             <iframe src="http://ghbtns.com/github-btn.html?user=HubSpot&amp;repo=pace&amp;type=watch&amp;count=true&amp;size=small" allowtransparency="true" frameborder="0" scrolling="0" width="200" height="20"></iframe>
         </div>
-        <div class="hn-share-button-wrapper">
-            <a href="http://news.ycombinator.com/submit" class="hn-share-button" data-title="Automatically Add Loading Bars to Your Website" data-url="http://github.hubspot.com/pace/docs/welcome/?hn">Vote on HN</a>
-        </div>
-        <script>
-            (function(d, t) {
-                var g = d.createElement(t),
-                    s = d.getElementsByTagName(t)[0];
-                g.src = '//hnbutton.appspot.com/static/hn.min.js';
-                s.parentNode.insertBefore(g, s);
-            }(document, 'script'));
-        </script>
 
         <!-- Start of Async HubSpot Analytics Code -->
         <script type="text/javascript">
